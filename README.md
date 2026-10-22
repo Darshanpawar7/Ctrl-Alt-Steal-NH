@@ -56,6 +56,22 @@ The site runs on Cloudflare Workers. The free plan is enough for this event.
 
 It prints your site's address, like `https://ctrl-alt-steal.<your-name>.workers.dev`. Run `npm run deploy` again any time you change the code. Game data is kept when you redeploy.
 
+## Cost: free
+
+Everything runs on Cloudflare's **Workers Free plan**. There is no database service, no image host and no paid add-on. The game's data lives in the Durable Object's built-in storage, and Round 3 photos are stored there too. On the free plan, going over a limit **blocks** that kind of request for the rest of the day; it never bills you. Daily limits reset at 00:00 UTC (5:30 AM in India).
+
+Expected use for one event with 40 crews (about 120 phones) over 3 hours:
+
+| Free limit (per day) | Expected for the event |
+| --- | --- |
+| 100,000 Worker requests (page files are free and don't count) | A few thousand: connections, sign-ups, and game actions counted at 20 messages = 1 request |
+| 13,000 GB-seconds of Durable Object time | About 2,000 (the server is awake roughly 4 hours) |
+| 100,000 storage rows written | About 10,000 (one per game action) |
+| 5 GB of storage | Under 1 MB of game data, plus any Round 3 photos (1.5 MB each at most) |
+| CPU per message | About 5 ms measured with 40 crews, under the strictest 10 ms reading |
+
+The free `*.workers.dev` web address is enough. A custom domain is optional and is the only thing here that would cost money.
+
 ## On the day
 
 1. **Before doors open:** open `/screen` on the projector laptop and click once to turn on sound and full screen. Open `/admin` on the host's laptop. Download a backup (Settings & data).
