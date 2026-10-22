@@ -45,6 +45,8 @@ Do these in order. Each one is a free account, and everything below uses only fr
 1. Sign up at <https://neon.tech> and create a project. Pick the **Asia Pacific (Singapore)** region, closest to Bengaluru.
 2. On the project dashboard, click **Connect** and copy the connection string. It looks like `postgresql://user:password@ep-something.ap-southeast-1.aws.neon.tech/neondb?sslmode=require`.
 
+> **Prefer Supabase?** It works too, with no code changes: both are plain Postgres. Create a project in the Singapore region, click **Connect**, and copy the **Session pooler** string (not "Direct": that one is IPv6-only on the free plan and Render can't reach it). Two catches: a free Supabase project **pauses after one week without activity** and has to be un-paused by hand, and setup takes a couple of minutes longer. That's why Neon is the default here: it sleeps when idle but wakes up by itself on the next save.
+
 ### 2. Render (the game server)
 
 1. Sign up at <https://render.com> with your GitHub account.
