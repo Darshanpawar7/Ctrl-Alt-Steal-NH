@@ -33,7 +33,9 @@ export function RoundPanel({ view, act, roundId }: { view: TeamView; act: Act; r
   const toast = useToast();
   const status = view.status[roundId];
   const serverSub = view.me.subs[roundId];
-  const locked = Boolean(serverSub?.lockedAt) || status !== "open";
+  const { team } = view.me;
+  const blocked = team.disqualified ? "Your crew has been disqualified. Talk to the floor manager." : view.event.requireCheckIn && !team.checkedIn ? "You're not checked in yet. Show your code at the desk, then you can answer." : null;
+  const locked = Boolean(serverSub?.lockedAt) || status !== "open" || blocked !== null;
   const [draft, setDraft] = useState<SubData[RoundId]>(() => serverSub?.data ?? EMPTY_SUB[roundId]);
   const [saveState, setSaveState] = useState<SaveState>(serverSub ? "saved" : "idle");
   const version = useRef(0);
@@ -102,8 +104,9 @@ export function RoundPanel({ view, act, roundId }: { view: TeamView; act: Act; r
   const complete = isComplete(roundId, draft, view.rounds);
   return (
     <div className="space-y-5">
+      {blocked && status === "open" && <p className="rounded-2xl border border-alarm/50 bg-alarm/10 p-4 text-center font-semibold text-alarm">{blocked}</p>}
       {form}
-      {status === "open" && (
+      {status === "open" && !blocked && (
         <div className="sticky bottom-20 z-20 rounded-2xl border border-line-2 bg-panel/95 p-3 shadow-2xl backdrop-blur">
           {serverSub?.lockedAt ? (
             <p className="text-center font-semibold text-acid">🔒 Locked in at {timeOfDay(serverSub.lockedAt)}. Sit tight.</p>
