@@ -1,15 +1,13 @@
 // Password checks and a small in-memory brake on guessing.
 
-const encoder = new TextEncoder();
+import { createHash, timingSafeEqual } from "node:crypto";
+
+const digest = (value: string) => createHash("sha256").update(value).digest();
 
 /** Constant-time comparison, so response timing leaks nothing about the secret. */
-export async function secretMatches(given: string, secret: string | undefined): Promise<boolean> {
+export function secretMatches(given: string, secret: string | undefined): boolean {
   if (!secret) return false;
-  const [a, b] = await Promise.all([
-    crypto.subtle.digest("SHA-256", encoder.encode(given)),
-    crypto.subtle.digest("SHA-256", encoder.encode(secret)),
-  ]);
-  return crypto.subtle.timingSafeEqual(a, b);
+  return timingSafeEqual(digest(given), digest(secret));
 }
 
 const WINDOW_MS = 5 * 60_000;

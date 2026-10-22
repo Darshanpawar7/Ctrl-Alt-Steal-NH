@@ -1,8 +1,8 @@
 import { describe, expect, test } from "vitest";
 import type { Action } from "../src/shared/protocol";
-import { applyAction } from "../src/worker/game/actions";
-import { computeLedgers } from "../src/worker/game/scoring";
-import { buildContext, publicView, teamView } from "../src/worker/game/views";
+import { applyAction } from "../src/server/game/actions";
+import { computeLedgers } from "../src/server/game/scoring";
+import { buildContext, publicView, teamView } from "../src/server/game/views";
 import { ADMIN, T0, VOLUNTEER, act, gameWith, idOf, setStatus, submit, teamActor } from "./helpers";
 
 // Regression tests for issues found in the security review.

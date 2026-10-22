@@ -185,12 +185,14 @@ function isScored(state: GameState, roundId: RoundId): boolean {
   return roundId === "finale" ? finaleScored(state) : state.status[roundId] === "revealed";
 }
 
-export function computeLedgers(state: GameState): Record<string, TeamLedger> {
+/** Ledgers for every team, or just one when `onlyTeamId` is given (cheaper for budget checks). */
+export function computeLedgers(state: GameState, onlyTeamId?: string): Record<string, TeamLedger> {
   const speedOrder = r2SpeedOrder(state);
   const start = state.event.startingCredits;
   const out: Record<string, TeamLedger> = {};
+  const teams = onlyTeamId ? state.teams.filter((t) => t.id === onlyTeamId) : state.teams;
 
-  for (const team of state.teams) {
+  for (const team of teams) {
     const adjustments = state.adjustments.filter((a) => a.teamId === team.id);
     const adjustmentRows = (after: RoundId | null): LedgerRow[] =>
       adjustments

@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
-import { applyAction, registerTeam } from "../src/worker/game/actions";
-import { createInitialState, restoreState, tick } from "../src/worker/game/state";
+import { applyAction, registerTeam } from "../src/server/game/actions";
+import { createInitialState, restoreState, tick } from "../src/server/game/state";
 import { ADMIN, T0, VOLUNTEER, act, gameWith, idOf, setStatus, submit, teamActor } from "./helpers";
 
 describe("permissions", () => {

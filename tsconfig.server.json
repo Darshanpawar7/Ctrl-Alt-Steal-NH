@@ -12,7 +12,7 @@
     "isolatedModules": true,
     "verbatimModuleSyntax": true,
     "noEmit": true,
-    "types": []
+    "types": ["node"]
   },
-  "include": ["src/worker", "src/shared", "test", "worker-configuration.d.ts"]
+  "include": ["src/server", "src/shared", "test", "scripts", "vite.server.config.ts"]
 }

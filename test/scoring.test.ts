@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import type { GameState } from "../src/shared/types";
-import { computeBadges, computeLedgers, computeStandings } from "../src/worker/game/scoring";
+import { computeBadges, computeLedgers, computeStandings } from "../src/server/game/scoring";
 import { ADMIN, T0, act, gameWith, idOf, setStatus, submit } from "./helpers";
 
 const credits = (state: GameState, name: string) => computeLedgers(state)[idOf(state, name)]!.total;

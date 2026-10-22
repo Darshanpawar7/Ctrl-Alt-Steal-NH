@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
-import { defaultCase, defaultRounds } from "../src/worker/game/content";
-import { checkCase } from "../src/worker/game/sanitize";
-import { isCorrectAnswer } from "../src/worker/game/util";
+import { defaultCase, defaultRounds } from "../src/server/game/content";
+import { checkCase } from "../src/server/game/sanitize";
+import { isCorrectAnswer } from "../src/server/game/util";
 
 // These tests prove the default mystery is solvable and self-consistent:
 // every puzzle decodes to the answer the key expects.

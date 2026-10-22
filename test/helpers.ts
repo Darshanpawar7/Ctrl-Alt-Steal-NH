@@ -1,7 +1,7 @@
 import type { Action } from "../src/shared/protocol";
 import type { GameState, RoundId, RoundStatus } from "../src/shared/types";
-import { applyAction, type Actor } from "../src/worker/game/actions";
-import { createInitialState } from "../src/worker/game/state";
+import { applyAction, type Actor } from "../src/server/game/actions";
+import { createInitialState } from "../src/server/game/state";
 
 export const T0 = 1_700_000_000_000;
 export const ADMIN: Actor = { role: "admin", teamId: null };

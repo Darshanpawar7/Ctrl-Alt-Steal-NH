@@ -1,6 +1,9 @@
 // Every change to the game goes through applyAction. It never mutates the
-// state it is given: it works on a deep copy and returns the new state.
+// state it is given: handlers edit an immer draft, and only the parts they
+// touch are copied. Everything else is shared with the previous state, which
+// keeps each action cheap and lets the store save only what changed.
 
+import { produce } from "immer";
 import type { Action, ActionType, TeamInput } from "../../shared/protocol";
 import {
   REVEAL_STEPS,
@@ -64,10 +67,11 @@ export function canPerform(role: Role, type: ActionType): boolean {
 
 export function applyAction(prev: GameState, action: Action, actor: Actor, now: number): ActionResult {
   if (!canPerform(actor.role, action.type)) throw new GameError("You are not allowed to do that.");
-  const state = structuredClone(prev);
   const kickTeams: string[] = [];
-  handle(state, action, actor, now, kickTeams);
-  state.updatedAt = now;
+  const state = produce(prev, (draft) => {
+    handle(draft as GameState, action, actor, now, kickTeams);
+    draft.updatedAt = now;
+  });
   return { state, kickTeams };
 }
 
@@ -123,12 +127,14 @@ export function registerTeam(prev: GameState, raw: unknown, now: number): { stat
   if (!prev.event.registrationOpen) throw new GameError("Registration is closed.");
   if (prev.teams.length >= prev.event.maxTeams) throw new GameError("All team slots are full. Talk to the organisers.");
   const input = sanitizeTeamInput(raw);
-  const state = structuredClone(prev);
-  checkTeamInput(state, input, null, false);
-  const created = createTeam(state, { ...input, notes: "" }, "online", now);
-  pushAudit(state, now, "team", "team.register", `${created.name} registered online`);
-  state.updatedAt = now;
-  return { state, team: created };
+  checkTeamInput(prev, input, null, false);
+  let created: Team | null = null;
+  const state = produce(prev, (draft) => {
+    created = { ...createTeam(draft as GameState, { ...input, notes: "" }, "online", now) };
+    pushAudit(draft as GameState, now, "team", "team.register", `${created.name} registered online`);
+    draft.updatedAt = now;
+  });
+  return { state, team: created! };
 }
 
 function roundCanAcceptTeam(state: GameState, roundId: RoundId, now: number): void {
@@ -206,7 +212,7 @@ function startTimer(state: GameState, seconds: number, label: string, now: numbe
 // ---------------------------------------------------------------- handlers
 
 function handle(state: GameState, action: Action, actor: Actor, now: number, kickTeams: string[]): void {
-  const ledgerOf = (teamId: string) => computeLedgers(state)[teamId]!;
+  const ledgerOf = (teamId: string) => computeLedgers(state, teamId)[teamId]!;
 
   switch (action.type) {
     // ------------------------------------------------------------ team

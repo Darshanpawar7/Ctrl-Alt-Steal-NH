@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import type { GameState } from "../src/shared/types";
-import { buildContext, publicView, staffView, teamView } from "../src/worker/game/views";
+import { buildContext, publicView, staffView, teamView } from "../src/server/game/views";
 import { act, gameWith, idOf, setStatus, submit } from "./helpers";
 
 const presence = { screens: 0, staff: 0, teams: {} };

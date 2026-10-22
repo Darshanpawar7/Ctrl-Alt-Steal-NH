@@ -33,7 +33,9 @@ export interface ViewContext {
 
 export function buildContext(state: GameState, presence: Presence): ViewContext {
   const ledgers = computeLedgers(state);
-  return { ledgers, standings: computeStandings(state, ledgers), badges: computeBadges(state, ledgers), presence };
+  // Badges only appear at the podium, so skip the work until then.
+  const badges = badgesVisible(state) ? computeBadges(state, ledgers) : {};
+  return { ledgers, standings: computeStandings(state, ledgers), badges, presence };
 }
 
 export function imageSrc(image: string): string {
@@ -298,7 +300,6 @@ export function staffView(state: GameState, ctx: ViewContext, role: "admin" | "v
       presence: ctx.presence,
       // The audit log mentions vault contents and content edits: admins only.
       audit: isAdmin ? state.audit.slice(-AUDIT_SENT) : [],
-      allBadges: ctx.badges,
     },
     full: isAdmin ? { caseFile: state.caseFile, rounds: state.rounds, vault: state.vault } : null,
   };

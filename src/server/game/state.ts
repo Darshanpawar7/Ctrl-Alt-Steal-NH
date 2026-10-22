@@ -1,5 +1,6 @@
 // Creating, restoring and ticking the game state.
 
+import { produce } from "immer";
 import {
   ROUND_IDS,
   type Adjustment,
@@ -96,11 +97,11 @@ export function tick(state: GameState, now: number): GameState | null {
   const { timer, stage, roundId } = state.live;
   if (!timerRunning(timer) || timer.endsAt! > now) return null;
   if (stage !== "round" || !roundId || state.status[roundId] !== "open") return null;
-  const next = structuredClone(state);
-  next.status[roundId] = "locked";
-  next.updatedAt = now;
-  pushFeed(next, now, "⏰", `Time! ${next.rounds[roundId].codename} is locked.`, "bad");
-  return next;
+  return produce(state, (draft) => {
+    draft.status[roundId] = "locked";
+    draft.updatedAt = now;
+    pushFeed(draft as GameState, now, "⏰", `Time! ${draft.rounds[roundId].codename} is locked.`, "bad");
+  });
 }
 
 export function pushFeed(state: GameState, now: number, icon: string, text: string, tone: FeedItem["tone"]): void {

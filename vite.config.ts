@@ -1,8 +1,12 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
-import { cloudflare } from "@cloudflare/vite-plugin";
 
+// The website. In development, /api (including the WebSocket) is forwarded
+// to the local game server started by `npm run dev`.
 export default defineConfig({
-  plugins: [react(), tailwindcss(), cloudflare()],
+  plugins: [react(), tailwindcss()],
+  server: {
+    proxy: { "/api": { target: "http://localhost:8787", ws: true } },
+  },
 });

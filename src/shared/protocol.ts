@@ -257,6 +257,17 @@ export interface Presence {
   screens: number;
   staff: number;
   teams: Record<string, number>;
+  /** Whether the game is being saved to the database. Shown to staff only. */
+  storage?: StorageHealth;
+}
+
+export interface StorageHealth {
+  kind: "postgres" | "file" | "memory";
+  ok: boolean;
+  /** Changes not yet written. */
+  pending: boolean;
+  lastSavedAt: number | null;
+  error: string | null;
 }
 
 export interface StaffView extends Omit<PublicView, "kind"> {
@@ -271,7 +282,6 @@ export interface StaffView extends Omit<PublicView, "kind"> {
     adjustments: Adjustment[];
     presence: Presence;
     audit: AuditEntry[];
-    allBadges: Record<string, Badge[]>;
   };
   /** Content with every answer key, plus the vault layout. Admin only. */
   full: AdminSecrets | null;

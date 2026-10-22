@@ -1,0 +1,24 @@
+# Render Blueprint for the game server. In the Render dashboard choose
+# New → Blueprint, pick this repository, and fill in the four secrets.
+services:
+  - type: web
+    name: ctrl-alt-steal-api
+    runtime: node
+    plan: free
+    region: singapore
+    buildCommand: npm ci --include=dev && npm run build:server
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: SERVE_CLIENT
+        value: "false"
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: VOLUNTEER_PASSWORD
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: ALLOWED_ORIGINS
+        sync: false

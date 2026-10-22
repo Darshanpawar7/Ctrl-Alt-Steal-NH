@@ -1,9 +1,9 @@
 import { describe, expect, test } from "vitest";
 import { applyPatch, type Action, type View } from "../src/shared/protocol";
 import type { GameState } from "../src/shared/types";
-import { applyAction, type Actor } from "../src/worker/game/actions";
-import { Broadcaster, recipientKey, type Recipient } from "../src/worker/game/broadcast";
-import { buildContext, publicView, staffView, teamView } from "../src/worker/game/views";
+import { applyAction, type Actor } from "../src/server/game/actions";
+import { Broadcaster, type Connection, type Recipient } from "../src/server/game/broadcast";
+import { buildContext, publicView, staffView, teamView } from "../src/server/game/views";
 import { ADMIN, T0, act, gameWith, idOf, setStatus, teamActor } from "./helpers";
 
 const presence = { screens: 1, staff: 2, teams: {} };
@@ -14,11 +14,13 @@ function setup() {
   const recipients: Recipient[] = [
     { role: "screen", teamId: null },
     { role: "team", teamId: idOf(s, "Alpha") },
+    { role: "team", teamId: idOf(s, "Alpha") },
     { role: "team", teamId: idOf(s, "Bravo") },
     { role: "admin", teamId: null },
     { role: "volunteer", teamId: null },
   ];
-  return { s, recipients };
+  const connections: Connection[] = recipients.map((recipient, i) => ({ id: { i }, recipient }));
+  return { s, connections };
 }
 
 function truth(s: GameState, r: Recipient): View {
@@ -28,31 +30,32 @@ function truth(s: GameState, r: Recipient): View {
   return staffView(s, ctx, r.role as "admin" | "volunteer");
 }
 
-/** A fake set of connected screens that apply messages exactly like the browser client. */
+/** Connected screens that apply messages exactly like the browser client. */
 class Room {
-  readonly screens = new Map<string, View>();
+  readonly views = new Map<Connection, View>();
   readonly b = new Broadcaster();
-  bytes = 0;
-  constructor(s: GameState, readonly recipients: Recipient[]) {
-    for (const r of recipients) this.screens.set(recipientKey(r), JSON.parse(this.b.snapshot(s, presence, r, 0)!).view);
+  constructor(s: GameState, readonly connections: Connection[]) {
+    for (const c of connections) this.views.set(c, JSON.parse(this.b.snapshot(s, presence, c, 0)!).view);
   }
-  push(s: GameState): string[] {
-    const out = this.b.changed(s, presence, this.recipients, 1);
-    for (const [key, raw] of out) {
+  push(s: GameState): Connection[] {
+    const out = this.b.changed(s, presence, this.connections, 1);
+    const reached: Connection[] = [];
+    for (const c of this.connections) {
+      const raw = out.get(c.id);
+      if (!raw) continue;
       const msg = JSON.parse(raw);
       expect(msg.t).toBe("patch");
-      this.bytes += raw.length;
-      this.screens.set(key, applyPatch(this.screens.get(key)!, msg.view));
+      this.views.set(c, applyPatch(this.views.get(c)!, msg.view));
+      reached.push(c);
     }
-    return [...out.keys()].sort();
+    return reached;
   }
 }
 
 describe("the broadcaster", () => {
   test("replayed patches always equal the full view each role may see", () => {
-    let { s, recipients } = setup();
-    const room = new Room(s, recipients);
-    room.push(s);
+    let { s, connections } = setup();
+    const room = new Room(s, connections);
     const steps: [Action, Actor][] = [
       [{ type: "sub.save", roundId: "r1", data: { stakes: { l1: 100 } } }, teamActor(s, "Alpha")],
       [{ type: "board.mark", key: "s:root", mark: "prime" }, teamActor(s, "Bravo")],
@@ -66,54 +69,52 @@ describe("the broadcaster", () => {
     for (const [action, actor] of steps) {
       s = applyAction(s, action, actor, T0).state;
       room.push(s);
-      for (const r of recipients) expect(room.screens.get(recipientKey(r))).toEqual(plain(truth(s, r)));
+      for (const c of connections) expect(room.views.get(c)).toEqual(plain(truth(s, c.recipient)));
     }
   });
 
   test("nothing is re-sent when nothing changed", () => {
-    const { s, recipients } = setup();
-    const room = new Room(s, recipients);
-    room.push(s);
+    const { s, connections } = setup();
+    const room = new Room(s, connections);
     expect(room.push(s)).toEqual([]);
   });
 
   test("a crew's auto-save only reaches its own phones and staff, and carries no shared content", () => {
-    const { s, recipients } = setup();
-    const room = new Room(s, recipients);
+    const { s, connections } = setup();
+    const room = new Room(s, connections);
     let next = act(s, { type: "sub.save", roundId: "r1", data: { stakes: { l1: 100 } } }, teamActor(s, "Alpha"));
     room.push(next);
     next = act(next, { type: "sub.save", roundId: "r1", data: { stakes: { l1: 150 } } }, teamActor(s, "Alpha"));
-    const out = room.b.changed(next, presence, recipients, 2);
-    expect([...out.keys()].sort()).toEqual(["admin", `team:${idOf(s, "Alpha")}`, "volunteer"]);
-    expect(Object.keys(JSON.parse(out.get(`team:${idOf(s, "Alpha")}`)!).view)).toEqual(["kind", "me"]);
-    expect(Object.keys(JSON.parse(out.get("admin")!).view)).toEqual(["kind", "staff"]);
+    const out = room.b.changed(next, presence, connections, 2);
+    const reached = connections.filter((c) => out.has(c.id)).map((c) => c.recipient.role);
+    expect(reached.sort()).toEqual(["admin", "team", "team", "volunteer"]);
+    expect(Object.keys(JSON.parse(out.get(connections[1]!.id)!).view)).toEqual(["kind", "me"]);
+    expect(Object.keys(JSON.parse(out.get(connections[4]!.id)!).view)).toEqual(["kind", "staff"]);
   });
 
   test("a board mark reaches only that crew", () => {
-    const { s, recipients } = setup();
-    const room = new Room(s, recipients);
-    room.push(s);
-    expect(room.push(act(s, { type: "board.mark", key: "s:root", mark: "prime" }, teamActor(s, "Alpha")))).toEqual([`team:${idOf(s, "Alpha")}`]);
+    const { s, connections } = setup();
+    const room = new Room(s, connections);
+    const reached = room.push(act(s, { type: "board.mark", key: "s:root", mark: "prime" }, teamActor(s, "Alpha")));
+    expect(reached.map((c) => c.recipient.teamId)).toEqual([idOf(s, "Alpha"), idOf(s, "Alpha")]);
   });
 
   test("an announcement reaches every screen with only the changed sections", () => {
-    const { s, recipients } = setup();
-    const room = new Room(s, recipients);
-    room.push(s);
+    const { s, connections } = setup();
+    const room = new Room(s, connections);
     const next = act(s, { type: "announce", text: "Two minutes left!" });
-    const out = room.b.changed(next, presence, recipients, 2);
-    expect([...out.keys()].sort()).toEqual([...new Set(recipients.map(recipientKey))].sort());
-    expect(Object.keys(JSON.parse(out.get("screen")!).view).sort()).toEqual(["feed", "kind", "live"]);
+    const out = room.b.changed(next, presence, connections, 2);
+    expect(out.size).toBe(connections.length);
+    expect(Object.keys(JSON.parse(out.get(connections[0]!.id)!).view).sort()).toEqual(["feed", "kind", "live"]);
   });
 
-  test("a screen that joins mid-game gets everything, and its group is resynced", () => {
-    const { s, recipients } = setup();
-    const b = new Broadcaster();
-    b.changed(s, presence, recipients, 1);
-    const late = JSON.parse(b.snapshot(s, presence, { role: "team", teamId: idOf(s, "Bravo") }, 3)!);
+  test("a phone that reconnects gets everything, and nobody else is resent anything", () => {
+    const { s, connections } = setup();
+    const room = new Room(s, connections);
+    const rejoined: Connection = { id: { rejoined: true }, recipient: connections[3]!.recipient };
+    const late = JSON.parse(room.b.snapshot(s, presence, rejoined, 3)!);
     expect(late.t).toBe("state");
-    expect(late.view).toEqual(plain(truth(s, { role: "team", teamId: idOf(s, "Bravo") })));
-    const next = b.changed(s, presence, recipients, 4);
-    expect([...next.keys()]).toEqual([`team:${idOf(s, "Bravo")}`]);
+    expect(late.view).toEqual(plain(truth(s, rejoined.recipient)));
+    expect(room.b.changed(s, presence, [...connections, rejoined], 4).size).toBe(0);
   });
 });
