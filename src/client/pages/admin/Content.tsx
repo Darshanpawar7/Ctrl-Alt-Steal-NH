@@ -260,7 +260,7 @@ function R2Editor({ value, set }: { value: R2Config; set: SetFn<R2Config> }) {
               <Text label="Placeholder" value={q.placeholder} onChange={(placeholder) => u({ placeholder })} />
               <Num label="Points" value={q.points} onChange={(points) => u({ points })} />
             </Grid>
-            <p className="text-xs text-muted">Matching ignores case, spaces and punctuation: “Buzz-Kill” matches “buzzkill”.</p>
+            <p className="text-xs text-muted">Matching ignores case, spaces and punctuation: “Hello-World” matches “helloworld”.</p>
           </>
         )} />
       </Card>

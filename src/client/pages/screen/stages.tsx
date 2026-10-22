@@ -165,11 +165,11 @@ function Classified() {
 
 const AI_FACTS = [
   "Deepfake tell: check ears, teeth and earrings. Image generators still fumble small, symmetric details.",
-  "“Certainly! Here's…” might be the most copy-pasted chatbot phrase in college history.",
+  "Chatbot tell: replies that open with “Great question!” and close with a tidy little summary.",
   "AI-written text is evenly confident, oddly formal, and never uses slang at 3 AM.",
   "A prediction market turns lots of guesses into one probability. The Trading Floor was a tiny one.",
   "Watermarking hides invisible statistical patterns in AI output so it can be identified later.",
-  "Overfitting means memorising the training data instead of learning the pattern. Some interns do it too.",
+  "Overfitting means memorising the training data instead of learning the pattern. Great for exams, terrible for models.",
   "Expected value = chance × payout. Before you walk into a vault, do the maths.",
   "Julius Caesar shifted letters by 3. Two thousand years later, people still fall for it.",
 ];

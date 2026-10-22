@@ -86,7 +86,7 @@ export function TerminalArt() {
       {"epoch 03 | loss 0.640\nepoch 04 | loss "}
       <span className="bg-alarm/30 text-alarm">?.???</span>
       {"\n>> SYS sealed: "}
-      <span className="text-ice">WLIPJ ██</span>
+      <span className="text-ice">QXZKV ██</span>
       <span className="blink">▌</span>
     </pre>
   );
