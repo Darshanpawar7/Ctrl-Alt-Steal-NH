@@ -32,6 +32,11 @@ export function ordinal(n: number): string {
   return `${n}${suffix}`;
 }
 
+/** Haptic buzz, only once the person has touched the page (browsers block it otherwise). */
+export function buzz(pattern: number | number[]): void {
+  if (navigator.userActivation?.hasBeenActive) navigator.vibrate?.(pattern);
+}
+
 export function joinUrl(): string {
   return `${window.location.origin}/play`;
 }
