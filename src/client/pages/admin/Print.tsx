@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { ROUND_IDS, type GameState, type RoundId, type Team } from "../../../shared/types";
+import type { AdminSecrets } from "../../../shared/protocol";
+import { ROUND_IDS, type RoundId, type Team } from "../../../shared/types";
 import { QrCode } from "../../components/QrCode";
 import { ROUND_LABEL, formatCode } from "../../lib/format";
 import { linkTo } from "../../lib/router";
@@ -94,7 +95,7 @@ function SlipHeader({ team, title }: { team: Team; title: string }) {
 const box = "inline-block size-[4mm] border-[1.5px] border-black align-middle";
 
 /** Pre-filled slips for one round. Uses only public round content, never the keys. */
-function Slips({ teams, roundId, state }: { teams: Team[]; roundId: RoundId; state: GameState }) {
+function Slips({ teams, roundId, state }: { teams: Team[]; roundId: RoundId; state: AdminSecrets }) {
   const r = state.rounds;
   const c = state.caseFile;
   const title = `${ROUND_LABEL[roundId]} · ${r[roundId].title}`;

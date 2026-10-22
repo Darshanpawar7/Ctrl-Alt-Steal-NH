@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import type { ContentSection } from "../../../shared/protocol";
-import type { CaseFile, Evidence, EvidenceKind, FinaleConfig, GameState, R1Config, R2Config, R3Config, R4Config, RoundBase } from "../../../shared/types";
+import type { AdminSecrets, ContentSection } from "../../../shared/protocol";
+import type { CaseFile, Evidence, EvidenceKind, FinaleConfig, R1Config, R2Config, R3Config, R4Config, RoundBase } from "../../../shared/types";
 import { ConfirmButton, SectionLabel, errorText, useToast } from "../../components/ui";
 import { ROUND_LABEL } from "../../lib/format";
 import { adminFetch, useStaff } from "./context";
@@ -17,7 +17,7 @@ const SECTIONS: { id: ContentSection; label: string }[] = [
 
 type SectionValue = CaseFile | R1Config | R2Config | R3Config | R4Config | FinaleConfig;
 
-function pickSection(state: GameState, section: ContentSection): SectionValue {
+function pickSection(state: AdminSecrets, section: ContentSection): SectionValue {
   return section === "caseFile" ? state.caseFile : state.rounds[section];
 }
 

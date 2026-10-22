@@ -232,10 +232,17 @@ export function publicView(state: GameState, ctx: ViewContext): PublicView {
 }
 
 export function teamView(state: GameState, ctx: ViewContext, teamId: string, shared: PublicView = publicView(state, ctx)): TeamView | null {
+  const me = teamMe(state, ctx, teamId);
+  if (!me) return null;
+  const { kind: _kind, ...rest } = shared;
+  return { ...rest, kind: "team", me };
+}
+
+/** The private part of a team's view: everything that differs from the public view. */
+export function teamMe(state: GameState, ctx: ViewContext, teamId: string): TeamView["me"] | null {
   const team = state.teams.find((t) => t.id === teamId);
   const ledger = ctx.ledgers[teamId];
   if (!team || !ledger) return null;
-  const { kind: _kind, ...rest } = shared;
 
   const subs: TeamView["me"]["subs"] = {};
   const hints: TeamView["me"]["hints"] = {};
@@ -257,22 +264,21 @@ export function teamView(state: GameState, ctx: ViewContext, teamId: string, sha
   const standing = ctx.standings.find((s) => s.teamId === teamId);
   const currentRound = state.live.roundId;
   return {
-    ...rest,
-    kind: "team",
-    me: {
-      team,
-      credits: ledger.total,
-      rank: state.live.leaderboardHidden ? null : (standing?.rank ?? null),
-      subs,
-      hints,
-      board: state.boards[teamId] ?? { marks: {}, notes: "" },
-      results,
-      bonusClue: r4Prize?.clue ? state.caseFile.clues.bonus : null,
-      badges: badgesVisible(state) ? (ctx.badges[teamId] ?? []) : [],
-      budget: currentRound ? ledger.before[currentRound] : ledger.total,
-    },
+    team,
+    credits: ledger.total,
+    rank: state.live.leaderboardHidden ? null : (standing?.rank ?? null),
+    subs,
+    hints,
+    board: state.boards[teamId] ?? { marks: {}, notes: "" },
+    results,
+    bonusClue: r4Prize?.clue ? state.caseFile.clues.bonus : null,
+    badges: badgesVisible(state) ? (ctx.badges[teamId] ?? []) : [],
+    budget: currentRound ? ledger.before[currentRound] : ledger.total,
   };
 }
+
+/** How many audit entries staff screens receive. The full log is in backups. */
+const AUDIT_SENT = 200;
 
 export function staffView(state: GameState, ctx: ViewContext, role: "admin" | "volunteer", shared: PublicView = publicView(state, ctx)): StaffView {
   const { kind: _kind, ...rest } = shared;
@@ -291,9 +297,9 @@ export function staffView(state: GameState, ctx: ViewContext, role: "admin" | "v
       adjustments: state.adjustments,
       presence: ctx.presence,
       // The audit log mentions vault contents and content edits: admins only.
-      audit: isAdmin ? state.audit : [],
+      audit: isAdmin ? state.audit.slice(-AUDIT_SENT) : [],
       allBadges: ctx.badges,
     },
-    full: isAdmin ? state : null,
+    full: isAdmin ? { caseFile: state.caseFile, rounds: state.rounds, vault: state.vault } : null,
   };
 }

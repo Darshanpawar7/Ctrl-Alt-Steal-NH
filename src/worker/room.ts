@@ -8,7 +8,7 @@ import type { GameState, Role } from "../shared/types";
 import { GameError, applyAction, registerTeam } from "./game/actions";
 import { createInitialState, restoreState, tick, timerRunning } from "./game/state";
 import { newId, normalizeCode } from "./game/util";
-import { buildContext, publicView, staffView, teamView } from "./game/views";
+import { Broadcaster, recipientKey } from "./game/broadcast";
 import { Limiter, secretMatches } from "./auth";
 
 interface Attachment {
@@ -27,6 +27,10 @@ const KICKED = 4001;
 /** Players and volunteers: sustained actions per second, and the burst allowed on top. */
 const ACT_RATE = 5;
 const ACT_BURST = 20;
+/** Changes inside this window go out as one update. */
+const BATCH_MS = 60;
+/** Phones connecting and leaving only refresh "online" dots, so they can wait longer. */
+const PRESENCE_MS = 750;
 
 function json(data: unknown, status = 200): Response {
   return Response.json(data, { status, headers: { "Cache-Control": "no-store" } });
@@ -72,7 +76,9 @@ export class GameRoom extends DurableObject<Env> {
   private readonly staffLimiter = new Limiter(15);
   private readonly registerLimiter = new Limiter(40, 10 * 60_000);
   private readonly buckets = new WeakMap<WebSocket, { tokens: number; at: number }>();
-  private presenceTimer: ReturnType<typeof setTimeout> | null = null;
+  private readonly broadcaster = new Broadcaster();
+  private broadcastTimer: ReturnType<typeof setTimeout> | null = null;
+  private broadcastDue = 0;
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
@@ -338,12 +344,12 @@ export class GameRoom extends DurableObject<Env> {
 
   // ------------------------------------------------------------ state
 
-  /** Persist first, then tell everyone. */
+  /** Persist first, then tell everyone (batched with any other changes in the next few ms). */
   private async commit(next: GameState): Promise<void> {
     await this.ctx.storage.put(STATE_KEY, next);
     this.state = next;
     await this.syncAlarm();
-    this.broadcast();
+    this.scheduleBroadcast(BATCH_MS);
   }
 
   private presence(sockets: WebSocket[]): Presence {
@@ -359,41 +365,37 @@ export class GameRoom extends DurableObject<Env> {
   }
 
   private schedulePresence(): void {
-    if (this.presenceTimer) return;
-    this.presenceTimer = setTimeout(() => {
-      this.presenceTimer = null;
+    this.scheduleBroadcast(PRESENCE_MS);
+  }
+
+  /** Runs one broadcast within `delayMs`, merging every change made in the meantime. */
+  private scheduleBroadcast(delayMs: number): void {
+    const due = Date.now() + delayMs;
+    if (this.broadcastTimer && this.broadcastDue <= due) return;
+    if (this.broadcastTimer) clearTimeout(this.broadcastTimer);
+    this.broadcastDue = due;
+    this.broadcastTimer = setTimeout(() => {
+      this.broadcastTimer = null;
       this.broadcast();
-    }, 750);
+    }, delayMs);
   }
 
   private broadcast(): void {
     const sockets = this.ctx.getWebSockets();
-    const ctx = buildContext(this.state, this.presence(sockets));
-    const shared = publicView(this.state, ctx);
-    const cache = new Map<string, string | null>();
-    const serverNow = Date.now();
-
-    for (const ws of sockets) {
-      const a = ws.deserializeAttachment() as Attachment | null;
-      if (!a?.role) continue;
-      const key = a.role === "team" ? `team:${a.teamId}` : a.role;
-      if (!cache.has(key)) {
-        const view = a.role === "screen" ? shared
-          : a.role === "team" ? teamView(this.state, ctx, a.teamId!, shared)
-          : staffView(this.state, ctx, a.role, shared);
-        cache.set(key, view ? JSON.stringify({ t: "state", view, serverNow } satisfies ServerMessage) : null);
-      }
-      const message = cache.get(key);
+    const listed = sockets
+      .map((ws) => ({ ws, a: ws.deserializeAttachment() as Attachment | null }))
+      .filter((s): s is { ws: WebSocket; a: Attachment & { role: Role } } => Boolean(s.a?.role));
+    const messages = this.broadcaster.changed(this.state, this.presence(sockets), listed.map((s) => s.a), Date.now());
+    for (const { ws, a } of listed) {
+      const message = messages.get(recipientKey(a));
       if (message) this.trySend(ws, message);
     }
   }
 
   private sendState(ws: WebSocket, a: Attachment): void {
-    const ctx = buildContext(this.state, this.presence(this.ctx.getWebSockets()));
-    const view = a.role === "team" ? teamView(this.state, ctx, a.teamId!)
-      : a.role === "admin" || a.role === "volunteer" ? staffView(this.state, ctx, a.role)
-      : publicView(this.state, ctx);
-    if (view) this.send(ws, { t: "state", view, serverNow: Date.now() });
+    if (!a.role) return;
+    const message = this.broadcaster.snapshot(this.state, this.presence(this.ctx.getWebSockets()), { role: a.role, teamId: a.teamId }, Date.now());
+    if (message) this.trySend(ws, message);
   }
 
   private send(ws: WebSocket, message: ServerMessage): void {

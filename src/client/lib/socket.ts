@@ -3,7 +3,7 @@
 // when the server confirms them.
 
 import { useEffect, useMemo, useSyncExternalStore } from "react";
-import type { Action, ClientMessage, ServerMessage, View } from "../../shared/protocol";
+import { applyPatch, type Action, type ClientMessage, type ServerMessage, type View } from "../../shared/protocol";
 import type { Role } from "../../shared/types";
 
 export type Hello = Extract<ClientMessage, { t: "hello" }>;
@@ -124,6 +124,9 @@ export class GameClient {
         return;
       case "state":
         this.set({ view: message.view, offset: message.serverNow - Date.now() });
+        return;
+      case "patch":
+        if (this.snapshot.view) this.set({ view: applyPatch(this.snapshot.view, message.view), offset: message.serverNow - Date.now() });
         return;
       case "pong":
         this.set({ offset: message.serverNow - Date.now() });

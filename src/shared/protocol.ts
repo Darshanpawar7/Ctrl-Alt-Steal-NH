@@ -1,5 +1,6 @@
 // Wire protocol between browsers and the game server, plus the filtered
-// "views" each role receives. Types only: safe for the browser bundle.
+// "views" each role receives. Types and one small merge helper only: safe
+// for the browser bundle.
 
 import type {
   Adjustment,
@@ -115,6 +116,8 @@ export type ServerMessage =
   | { t: "welcome"; role: Role; teamId: string | null }
   | { t: "denied"; reason: string }
   | { t: "state"; view: View; serverNow: number }
+  /** Only the sections that changed; merge into the last view. */
+  | { t: "patch"; view: ViewPatch; serverNow: number }
   | { t: "ack"; id: string; ok: boolean; error?: string }
   | { t: "pong"; serverNow: number };
 
@@ -270,8 +273,20 @@ export interface StaffView extends Omit<PublicView, "kind"> {
     audit: AuditEntry[];
     allBadges: Record<string, Badge[]>;
   };
-  /** Full state including answer keys. Admin only. */
-  full: GameState | null;
+  /** Content with every answer key, plus the vault layout. Admin only. */
+  full: AdminSecrets | null;
 }
 
+export type AdminSecrets = Pick<GameState, "caseFile" | "rounds" | "vault">;
+
 export type View = PublicView | TeamView | StaffView;
+
+export type ViewPatch = { kind: View["kind"] } & Partial<Omit<StaffView, "kind" | "staff">> &
+  Partial<Omit<TeamView, "kind">> & { staff?: Partial<StaffView["staff"]> };
+
+/** Applies a patch the way every client does. Shared so tests can replay it. */
+export function applyPatch(prev: View, patch: ViewPatch): View {
+  const next = { ...prev, ...patch } as View;
+  if (prev.kind === "staff" && next.kind === "staff" && patch.staff) next.staff = { ...prev.staff, ...patch.staff };
+  return next;
+}
