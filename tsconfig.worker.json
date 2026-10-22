@@ -12,7 +12,7 @@
     "isolatedModules": true,
     "verbatimModuleSyntax": true,
     "noEmit": true,
-    "types": ["./worker-configuration.d.ts", "vitest/globals"]
+    "types": []
   },
   "include": ["src/worker", "src/shared", "test", "worker-configuration.d.ts"]
 }
