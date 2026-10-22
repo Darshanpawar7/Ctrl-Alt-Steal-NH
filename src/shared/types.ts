@@ -346,7 +346,7 @@ export interface TeamLedger {
   total: number;
   /** Credits after each scored stage. "start" is the opening balance. */
   after: Partial<Record<RoundId | "start", number>>;
-  /** Credits a team had going into each round: the cap for stakes and bets. */
+  /** Credits a team can stake in each round (after any hints bought in it): the cap for stakes and bets. */
   before: Record<RoundId, number>;
 }
 

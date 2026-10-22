@@ -124,7 +124,6 @@ export interface PublicTeam {
   id: string;
   name: string;
   emoji: string;
-  members: string[];
   checkedIn: boolean;
   disqualified: boolean;
   online: boolean;

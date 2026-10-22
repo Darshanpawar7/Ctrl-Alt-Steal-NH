@@ -22,7 +22,7 @@ import {
   type Standing,
   type TeamLedger,
 } from "../../shared/types";
-import { computeBadges, computeLedgers, computeStandings, finaleCorrectCount, r2SpeedOrder, rankedTeamIds } from "./scoring";
+import { computeBadges, computeLedgers, computeStandings, finaleCorrectCount, r2SpeedOrder, rankedTeamIds, vaultPlay } from "./scoring";
 
 export interface ViewContext {
   ledgers: Record<string, TeamLedger>;
@@ -46,9 +46,15 @@ function base(cfg: RoundBase) {
   return { ...rest, hintCosts: hints.map((h) => h.cost) };
 }
 
+/** Suspect dossiers, hideouts and methods stay sealed until the briefing starts. */
+function briefed(state: GameState): boolean {
+  return state.live.stage !== "lobby" || ROUND_IDS.some((id) => state.status[id] !== "pending");
+}
+
 function publicCase(state: GameState): PublicCase {
   const c = state.caseFile;
   const shown = (step: number) => state.status.finale === "revealed" && state.live.revealStep >= step;
+  const open = briefed(state);
   const clues: PublicCase["clues"] = {};
   for (const id of ["r1", "r2", "r3"] as const) if (state.status[id] === "revealed") clues[id] = c.clues[id];
   return {
@@ -56,9 +62,9 @@ function publicCase(state: GameState): PublicCase {
     headline: c.headline,
     story: c.story,
     facts: c.facts,
-    suspects: c.suspects,
-    locations: c.locations,
-    methods: c.methods,
+    suspects: open ? c.suspects : c.suspects.map((s) => ({ ...s, bio: "", traits: [] })),
+    locations: open ? c.locations : [],
+    methods: open ? c.methods : [],
     clues,
     solution: {
       thiefId: shown(REVEAL_STEP.thief) ? c.solution.thiefId : undefined,
@@ -160,9 +166,9 @@ function stats(state: GameState, ctx: ViewContext): RoundStats {
     vaultPicks = state.rounds.r4.doors.map((door) => ({ door, teams: [] as { teamId: string; wager: number }[] }));
     vaultBanked = [];
     for (const teamId of ranked) {
-      const sub = state.subs.r4[teamId];
-      const pick = sub?.data.choice === "vault" ? vaultPicks.find((p) => p.door === sub.data.door) : undefined;
-      if (pick && sub) pick.teams.push({ teamId, wager: sub.data.wager });
+      const play = vaultPlay(state, teamId, ctx.ledgers[teamId]?.before.r4 ?? 0);
+      const pick = play ? vaultPicks.find((p) => p.door === play.door) : undefined;
+      if (pick && play) pick.teams.push({ teamId, wager: play.wager });
       else vaultBanked.push(teamId);
     }
   }
@@ -209,11 +215,11 @@ export function publicView(state: GameState, ctx: ViewContext): PublicView {
     status: state.status,
     caseFile: publicCase(state),
     rounds: publicRounds(state),
+    // Team names only: member names and SRNs never leave the staff view.
     teams: state.teams.map((t) => ({
       id: t.id,
       name: t.name,
       emoji: t.emoji,
-      members: t.members.map((m) => m.name),
       checkedIn: t.checkedIn,
       disqualified: t.disqualified,
       online: (online[t.id] ?? 0) > 0,
@@ -245,10 +251,8 @@ export function teamView(state: GameState, ctx: ViewContext, teamId: string, sha
     return { roundId, rows, delta: rows.reduce((total, r) => total + r.delta, 0), pending: rows.some((r) => r.pending) };
   }).filter((r) => r.rows.length > 0);
 
-  const r4 = state.subs.r4[teamId];
-  const r4Prize = r4 && r4.data.choice === "vault" && state.live.vaultOpened.includes(r4.data.door)
-    ? state.rounds.r4.prizes[state.vault[r4.data.door] ?? -1]
-    : undefined;
+  const play = state.status.r4 === "revealed" ? vaultPlay(state, teamId, ledger.before.r4) : null;
+  const r4Prize = play && state.live.vaultOpened.includes(play.door) ? state.rounds.r4.prizes[state.vault[play.door] ?? -1] : undefined;
 
   const standing = ctx.standings.find((s) => s.teamId === teamId);
   const currentRound = state.live.roundId;

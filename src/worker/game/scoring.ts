@@ -58,8 +58,8 @@ export function r2SpeedOrder(state: GameState): string[] {
 function hintRows(state: GameState, roundId: RoundId, teamId: string): LedgerRow[] {
   const bought = state.hints[roundId][teamId] ?? [];
   const hints = state.rounds[roundId].hints;
-  return bought
-    .filter((index) => hints[index])
+  return [...new Set(bought)]
+    .filter((index) => Number.isInteger(index) && index >= 0 && index < hints.length)
     .map((index) => ({
       key: `${roundId}:hint:${index}`,
       roundId,
@@ -113,18 +113,26 @@ export function vaultCap(state: GameState, budget: number): number {
   return Math.floor((Math.max(0, budget) * state.rounds.r4.maxWagerPct) / 100);
 }
 
+/**
+ * A crew's vault play, or null if it effectively banked. A pick only counts
+ * with a real wager, so nobody wins the bonus clue while risking nothing.
+ */
+export function vaultPlay(state: GameState, teamId: string, budget: number): { door: string; wager: number } | null {
+  const sub = state.subs.r4[teamId];
+  if (!sub || sub.data.choice !== "vault" || !state.rounds.r4.doors.includes(sub.data.door)) return null;
+  const wager = clamp(Math.floor(sub.data.wager), 0, vaultCap(state, budget));
+  return wager >= state.rounds.r4.minWager && wager > 0 ? { door: sub.data.door, wager } : null;
+}
+
 function scoreR4(state: GameState, teamId: string, budget: number): LedgerRow[] {
   if (state.status.r4 !== "revealed") return [];
-  const sub = state.subs.r4[teamId];
-  if (!sub || sub.data.choice === "bank" || !sub.data.door) {
-    return [{ key: "r4:bank", roundId: "r4", label: "Banked", delta: 0, detail: "Played it safe" }];
-  }
-  const door = sub.data.door;
+  const play = vaultPlay(state, teamId, budget);
+  if (!play) return [{ key: "r4:bank", roundId: "r4", label: "Banked", delta: 0, detail: "Played it safe" }];
+  const { door, wager } = play;
   const prize = state.rounds.r4.prizes[state.vault[door] ?? -1];
   if (!state.live.vaultOpened.includes(door) || !prize) {
     return [{ key: "r4:door", roundId: "r4", label: `Door ${door}`, delta: 0, detail: "Waiting for the door to open", pending: true }];
   }
-  const wager = clamp(Math.floor(sub.data.wager), 0, vaultCap(state, budget));
   const delta = Math.round(wager * (prize.multiplier - 1));
   return [{ key: "r4:door", roundId: "r4", label: `Door ${door}: ${prize.label}`, delta, detail: `${wager} wagered, came back ×${prize.multiplier}` }];
 }
@@ -157,19 +165,19 @@ function scoreFinale(state: GameState, teamId: string, budget: number): LedgerRo
 
 // ---------------------------------------------------------------- ledgers
 
+/** `budget` is what the crew can stake this round: its credits after any hints bought in it. */
 function scoreRound(state: GameState, roundId: RoundId, teamId: string, budget: number, speedOrder: string[]): LedgerRow[] {
-  const hints = hintRows(state, roundId, teamId);
   switch (roundId) {
     case "r1":
-      return [...hints, ...scoreR1(state, teamId, budget)];
+      return scoreR1(state, teamId, budget);
     case "r2":
-      return [...hints, ...scoreR2(state, teamId, speedOrder)];
+      return scoreR2(state, teamId, speedOrder);
     case "r3":
-      return [...hints, ...scoreR3(state, teamId)];
+      return scoreR3(state, teamId);
     case "r4":
-      return [...hints, ...scoreR4(state, teamId, budget)];
+      return scoreR4(state, teamId, budget);
     case "finale":
-      return [...hints, ...scoreFinale(state, teamId, budget)];
+      return scoreFinale(state, teamId, budget);
   }
 }
 
@@ -196,8 +204,9 @@ export function computeLedgers(state: GameState): Record<string, TeamLedger> {
     const before = {} as Record<RoundId, number>;
 
     for (const roundId of ROUND_IDS) {
-      before[roundId] = credits;
-      const roundRows = [...scoreRound(state, roundId, team.id, credits, speedOrder), ...adjustmentRows(roundId)];
+      const hints = hintRows(state, roundId, team.id);
+      before[roundId] = credits + sum(hints.map((r) => r.delta));
+      const roundRows = [...hints, ...scoreRound(state, roundId, team.id, before[roundId], speedOrder), ...adjustmentRows(roundId)];
       rows.push(...roundRows);
       credits += sum(roundRows.map((r) => r.delta));
       if (isScored(state, roundId)) after[roundId] = credits;
@@ -287,15 +296,15 @@ export function computeBadges(state: GameState, ledgers: Record<string, TeamLedg
         add("hunter", "🕵️", "Deepfake Hunter", "Called every piece of evidence correctly");
       }
     }
-    const r4 = state.subs.r4[id];
     if (state.status.r4 === "revealed") {
-      if (!r4 || r4.data.choice === "bank") add("banker", "🏦", "Safe Hands", "Banked it in the Vault");
-      else if (state.live.vaultOpened.includes(r4.data.door)) {
-        const prize = state.rounds.r4.prizes[state.vault[r4.data.door] ?? -1];
+      const play = vaultPlay(state, id, ledger.before.r4);
+      if (!play) add("banker", "🏦", "Safe Hands", "Banked it in the Vault");
+      else if (state.live.vaultOpened.includes(play.door)) {
+        const prize = state.rounds.r4.prizes[state.vault[play.door] ?? -1];
         if (prize && prize.multiplier === Math.max(...state.rounds.r4.prizes.map((p) => p.multiplier))) {
           add("jackpot", "💰", "Jackpot", "Opened the jackpot door");
         }
-        if (r4.data.wager >= vaultCap(state, ledger.before.r4) * 0.9) add("highroller", "🎰", "High Roller", "Wagered the maximum in the Vault");
+        if (play.wager >= vaultCap(state, ledger.before.r4) * 0.9) add("highroller", "🎰", "High Roller", "Wagered the maximum in the Vault");
       }
     }
     if (finaleScored(state) && state.subs.finale[id]) {

@@ -78,7 +78,7 @@ The old collection windows are now spare minutes. Use them for paper slips, host
 | Ops Head 2: Logistics | Volunteer | **Print kit** (before), **Rounds & answers → Enter** for paper slips |
 | Social media & design | Volunteer | Help at the desk and with paper slips; capture the podium |
 
-Volunteers can check crews in, add walk-ins and enter paper answers until a round is revealed. They never see answer keys.
+Volunteers can check crews in, add walk-ins and enter paper answers until a round is revealed. They never see answer keys. Once the first round starts, only club heads can undo a check-in.
 
 ## Before the event
 
@@ -96,6 +96,8 @@ Volunteers can check crews in, add walk-ins and enter paper answers until a roun
 - **A phone can't sign in:** check the code on the Teams page. Use **New code** if a code leaked (it logs out everyone using the old one).
 - **A wrong answer key or a dispute:** fix the key in Case & content or the crew's answer in Rounds & answers. Totals recalculate. For anything else, add an adjustment with a reason.
 - **Projector laptop crashes:** open `/screen` again. Nothing is lost; the game lives on the server.
+- **Fake or joke registrations:** delete them on the Teams page, and switch registration off in Settings & data once sign-ups close. Walk-ins can still be added at the desk.
+- **"Too many wrong attempts" at sign-in:** someone on the same Wi-Fi typed a lot of wrong codes or passwords. It clears in 5 minutes, or switch that phone to mobile data.
 - **Total disaster:** restore the last backup from **Settings & data**.
 
 ## Still to decide

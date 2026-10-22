@@ -162,9 +162,10 @@ function cleanSub<K extends RoundId>(state: GameState, roundId: K, raw: unknown,
     const d = data as SubData["r4"];
     const cfg = state.rounds.r4;
     if (d.door && !cfg.doors.includes(d.door)) throw new GameError("That door does not exist.");
-    if (enforceLimits && d.choice === "vault" && d.wager > 0) {
+    if (enforceLimits && d.choice === "vault") {
       const cap = vaultCap(state, budget);
       if (d.wager > cap) throw new GameError(`You can wager at most ${cap} credits.`);
+      // A vault pick must risk something: a zero wager would win the bonus clue for free.
       if (d.wager < cfg.minWager) throw new GameError(`The minimum wager is ${cfg.minWager} credits.`);
     }
     return { ...d, wager: d.choice === "bank" ? 0 : d.wager } as SubData[K];
@@ -227,22 +228,26 @@ function handle(state: GameState, action: Action, actor: Actor, now: number, kic
       const roundId = round(action.roundId);
       if (state.event.requireCheckIn && !me.checkedIn) throw new GameError("Check in at the registration desk first.");
       roundCanAcceptTeam(state, roundId, now);
-      const hint = state.rounds[roundId].hints[action.index];
-      if (!hint) throw new GameError("That hint does not exist.");
+      const index = action.index;
+      const hints = state.rounds[roundId].hints;
+      if (!Number.isInteger(index) || index < 0 || index >= hints.length) throw new GameError("That hint does not exist.");
+      const hint = hints[index]!;
       const bought = state.hints[roundId][me.id] ?? [];
-      if (bought.includes(action.index)) return;
+      if (bought.includes(index)) return;
       if (hint.cost > ledgerOf(me.id).total) throw new GameError("Not enough credits for that hint.");
-      state.hints[roundId][me.id] = [...bought, action.index];
+      state.hints[roundId][me.id] = [...bought, index];
       pushFeed(state, now, "💡", `${me.emoji} ${me.name} bought a hint.`, "info");
       return;
     }
     case "board.mark": {
       const me = team(state, actor.teamId);
-      const key = str(action.key, 50);
-      const [kind, id] = key.split(":");
+      const raw = str(action.key, 50);
+      const [kind, id] = raw.split(":");
       const { suspects, locations, methods } = state.caseFile;
       const options = kind === "s" ? suspects : kind === "l" ? locations : kind === "m" ? methods : [];
-      if (!options.some((o) => o.id === id)) throw new GameError("Unknown board entry.");
+      // Rebuild the key so the board can only ever hold one entry per real option.
+      const key = `${kind}:${id}`;
+      if (raw !== key || !options.some((o) => o.id === id)) throw new GameError("Unknown board entry.");
       const board = state.boards[me.id] ?? { marks: {}, notes: "" };
       const mark = sanitizeMark(action.mark);
       const marks = { ...board.marks };
@@ -282,6 +287,9 @@ function handle(state: GameState, action: Action, actor: Actor, now: number, kic
     case "team.checkin": {
       const target = team(state, action.id);
       if (target.checkedIn === Boolean(action.value)) return;
+      // Undoing a check-in mid-game drops a crew off the leaderboard, so only club heads may.
+      const started = ROUND_IDS.some((id) => state.status[id] !== "pending");
+      if (!action.value && started && actor.role !== "admin") throw new GameError("The game has started. Ask a club head to undo a check-in.");
       target.checkedIn = Boolean(action.value);
       target.checkedInAt = target.checkedIn ? now : null;
       if (target.checkedIn) pushFeed(state, now, "✅", `${target.emoji} ${target.name} checked in.`, "good");
@@ -363,8 +371,12 @@ function handle(state: GameState, action: Action, actor: Actor, now: number, kic
       state.live.stage = action.stage;
       if (action.roundId !== undefined) state.live.roundId = action.roundId === null ? null : round(action.roundId);
       if (action.stage === "finalReveal") {
-        // Entering the reveal locks the final answers for good.
-        if (state.status.finale !== "revealed") state.status.finale = "revealed";
+        // Entering the reveal locks the final answers for good, and always starts
+        // from the first beat so a reveal tested earlier can't spoil the real one.
+        if (state.status.finale !== "revealed") {
+          state.status.finale = "revealed";
+          state.live.revealStep = 0;
+        }
         state.live.roundId = "finale";
         state.live.timer = emptyTimer();
         state.live.leaderboardHidden = true;
@@ -377,6 +389,7 @@ function handle(state: GameState, action: Action, actor: Actor, now: number, kic
       if (!STATUSES.includes(action.status)) throw new GameError("Unknown round status.");
       const cfg = state.rounds[roundId];
       state.status[roundId] = action.status;
+      if (roundId === "finale" && action.status !== "revealed") state.live.revealStep = 0;
       if (action.status !== "pending") {
         state.live.stage = "round";
         state.live.roundId = roundId;
