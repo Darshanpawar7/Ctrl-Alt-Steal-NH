@@ -82,7 +82,8 @@ Volunteers can check crews in, add walk-ins and enter paper answers until a roun
 
 ## Before the event
 
-- [ ] Deploy the site and set both passwords (see the README).
+- [ ] Put it online: Neon, Render, Vercel and UptimeRobot, with both passwords set (see the README).
+- [ ] Run the load test against the real server (`npm run load-test`) and check it reports no errors.
 - [ ] Fill in the date, venue, start time and Instagram in **Settings & data**. Open registration.
 - [ ] Read the case in **Case & content**. Change anything you like. If the repository will ever be public, change the solution and clues here.
 - [ ] Optional: add real and AI-generated photos to Round 3.
@@ -96,6 +97,8 @@ Volunteers can check crews in, add walk-ins and enter paper answers until a roun
 - **A phone can't sign in:** check the code on the Teams page. Use **New code** if a code leaked (it logs out everyone using the old one).
 - **A wrong answer key or a dispute:** fix the key in Case & content or the crew's answer in Rounds & answers. Totals recalculate. For anything else, add an adjustment with a reason.
 - **Projector laptop crashes:** open `/screen` again. Nothing is lost; the game lives on the server.
+- **"Reconnecting…" on every screen:** the game server is restarting (Render can do this at any time). Wait a few seconds: screens reconnect by themselves and every saved answer is still there. If a red "not being saved" bar appears in the admin panel, download a backup.
+- **The game server is down for good:** run Plan B from the README (`npm run laptop`) and restore your latest backup on it.
 - **Fake or joke registrations:** delete them on the Teams page, and switch registration off in Settings & data once sign-ups close. Walk-ins can still be added at the desk.
 - **"Too many wrong attempts" at sign-in:** someone on the same Wi-Fi typed a lot of wrong codes or passwords. It clears in 5 minutes, or switch that phone to mobile data.
 - **Total disaster:** restore the last backup from **Settings & data**.

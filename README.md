@@ -27,60 +27,99 @@ Everything stays in sync live. When the host presses **Next** in the control roo
 
 The full rules, payouts and what changed from the original plan are in [docs/EVENT-GUIDE.md](docs/EVENT-GUIDE.md). The answer key and host script are in [docs/HOST-ANSWER-KEY.md](docs/HOST-ANSWER-KEY.md) (spoilers).
 
-## Run it on your laptop
+## How it's hosted (all free)
 
-You need [Node.js](https://nodejs.org) 22 or newer.
+| Piece | Service | Job |
+| --- | --- | --- |
+| Website | **Vercel** | Serves every page. Static files, so it never sleeps. |
+| Game server | **Render** | A Node.js program that holds the live game and every phone's connection. |
+| Database | **Neon** | Saves every change. If Render restarts the server, nothing is lost. |
+| Keep-awake | **UptimeRobot** | Pings the server every 5 minutes so Render never puts it to sleep. |
+
+## Put it online
+
+Do these in order. Each one is a free account, and everything below uses only free plans.
+
+### 1. Neon (the database)
+
+1. Sign up at <https://neon.tech> and create a project. Pick the **Asia Pacific (Singapore)** region, closest to Bengaluru.
+2. On the project dashboard, click **Connect** and copy the connection string. It looks like `postgresql://user:password@ep-something.ap-southeast-1.aws.neon.tech/neondb?sslmode=require`.
+
+### 2. Render (the game server)
+
+1. Sign up at <https://render.com> with your GitHub account.
+2. Click **New → Blueprint**, pick this repository, and confirm. Render reads `render.yaml` and sets up a free web service in Singapore.
+3. Fill in the secrets it asks for:
+   - `ADMIN_PASSWORD`: the club heads' password. Make it long.
+   - `VOLUNTEER_PASSWORD`: the desk volunteers' password.
+   - `DATABASE_URL`: the Neon connection string from step 1.
+   - `ALLOWED_ORIGINS`: leave it empty for now. You fill it in at step 3.
+4. Wait for the first deploy (a few minutes). Copy the service's address, like `https://ctrl-alt-steal-api.onrender.com`.
+5. Open `https://<your-render-address>/api/health`. You should see `"ok":true` and `"kind":"postgres"`.
+
+### 3. Vercel (the website)
+
+1. Sign up at <https://vercel.com> with your GitHub account and **Add New → Project**, then import this repository. It detects Vite automatically.
+2. Under **Environment Variables**, add `VITE_API_URL` = your Render address from step 2 (no slash at the end).
+3. Deploy, and copy your site's address, like `https://ctrl-alt-steal.vercel.app`.
+4. Back on Render, open the service's **Environment** tab and set `ALLOWED_ORIGINS` to your Vercel address. If you add a custom domain later, list both, separated by a comma. Choose **Save and deploy**.
+
+### 4. UptimeRobot (keep the server awake)
+
+Render's free server sleeps after 15 minutes without visitors, and waking up takes about a minute. Stop that from ever happening:
+
+1. Sign up at <https://uptimerobot.com>.
+2. **New monitor → HTTP(s)**, URL `https://<your-render-address>/api/health`, check every **5 minutes**.
+
+Bonus: UptimeRobot emails you if the server ever goes down.
+
+### 5. Prove it before the event
+
+From this folder on your laptop, run a full-hall rehearsal against the real server:
 
 ```bash
 npm install
-cp .dev.vars.example .dev.vars     # then change the two passwords inside
-npm run dev
+npm run load-test -- https://<your-render-address> <your-admin-password>
 ```
 
-Open <http://localhost:5173>. The admin panel is at <http://localhost:5173/admin>.
+It plays 40 crews on 120 phones for 3 minutes, cleans up after itself, and prints response times, errors, data per phone, and how much of the server's CPU and memory it used. Afterwards, press **Reset after dry run** in Admin → Settings & data to clear the test announcements.
 
-To let phones on the same Wi-Fi join your laptop, run `npm run dev:lan` and share the "Network" address it prints (for example `http://192.168.1.20:5173`). Campus Wi-Fi often blocks phone-to-laptop traffic, so for the real event, deploy it (below).
+## What each free plan gives you
 
-## Put it online (free, on Cloudflare)
+| Service | Free limits that matter | This event |
+| --- | --- | --- |
+| Vercel (Hobby) | 100 GB bandwidth a month, non-commercial use | A few hundred MB |
+| Render (Free) | 750 server hours a month; sleeps after 15 min idle; may restart at any time | One server all month is about 744 hours. UptimeRobot stops the sleeping; restarts are covered by Neon. |
+| Neon (Free) | 1 GB storage, 100 compute hours a month; sleeps after 5 min idle and wakes on the next save | Under 5 MB, a few compute hours |
+| UptimeRobot (Free) | 50 monitors, 5-minute checks | 1 monitor |
 
-The site runs on Cloudflare Workers. The free plan is enough for this event.
+Measured on the production build with Postgres saving, 40 crews:
 
-1. Make a free account at <https://dash.cloudflare.com/sign-up>.
-2. Log in from this folder: `npx wrangler login`
-3. Set the two passwords (it asks you to type each one):
+- One active phone per crew (a realistic hall): 2% of one CPU core, median response 1 ms.
+- All 120 phones busy at once (about 3× a real peak): 5.4% of one core, median 1 ms, 0 errors, 128 MB memory.
 
-   ```bash
-   npx wrangler secret put ADMIN_PASSWORD
-   npx wrangler secret put VOLUNTEER_PASSWORD
-   ```
-
-4. Deploy: `npm run deploy`
-
-It prints your site's address, like `https://ctrl-alt-steal.<your-name>.workers.dev`. Run `npm run deploy` again any time you change the code. Game data is kept when you redeploy.
-
-## Cost: free
-
-Everything runs on Cloudflare's **Workers Free plan**. There is no database service, no image host and no paid add-on. The game's data lives in the Durable Object's built-in storage, and Round 3 photos are stored there too. On the free plan, going over a limit **blocks** that kind of request for the rest of the day; it never bills you. Daily limits reset at 00:00 UTC (5:30 AM in India).
-
-Expected use for one event with 40 crews (about 120 phones) over 3 hours:
-
-| Free limit (per day) | Expected for the event |
-| --- | --- |
-| 100,000 Worker requests (page files are free and don't count) | A few thousand: connections, sign-ups, and game actions counted at 20 messages = 1 request |
-| 13,000 GB-seconds of Durable Object time | About 2,000 (the server is awake roughly 4 hours) |
-| 100,000 storage rows written | About 10,000 (one per game action) |
-| 5 GB of storage | Under 1 MB of game data, plus any Round 3 photos (1.5 MB each at most) |
-| CPU per message | About 5 ms measured with 40 crews, under the strictest 10 ms reading |
-
-The free `*.workers.dev` web address is enough. A custom domain is optional and is the only thing here that would cost money.
+Why not Render's own free database? It is deleted 30 days after you create it, and its free Redis isn't saved at all. Neon's free plan has no such expiry, and running out of a Neon limit pauses it rather than deleting data.
 
 ## On the day
 
-1. **Before doors open:** open `/screen` on the projector laptop and click once to turn on sound and full screen. Open `/admin` on the host's laptop. Download a backup (Settings & data).
+1. **Before doors open:** check `https://<render>/api/health` shows `"ok":true`. Open `/screen` on the projector laptop and click once to turn on sound and full screen. Open `/admin` on the host's laptop. Download a backup (Settings & data).
 2. **Check-in:** volunteers sign in to `/admin` with the volunteer password and use **Teams & check-in**. Crews can't answer until they're checked in, which also records attendance.
 3. **Run the show:** in the **Control room**, press **Next** to step through the schedule. Timers lock answers automatically at zero.
-4. **If the Wi-Fi dies:** print slips from **Print kit** beforehand. Volunteers type paper answers in under **Rounds & answers → Enter**.
-5. **After:** download the attendance and scores CSVs for the post-event report.
+4. **If the server restarts:** phones show "Reconnecting…" and come back by themselves within seconds. Every saved answer is still there.
+5. **If the Wi-Fi dies:** print slips from **Print kit** beforehand. Volunteers type paper answers in under **Rounds & answers → Enter**.
+6. **After:** download the attendance and scores CSVs for the post-event report.
+
+### Plan B: run everything from one laptop
+
+If both the internet and mobile data are down, a laptop can run the whole event on the venue's local network:
+
+```bash
+npm install
+cp .env.example .env      # set the passwords inside
+npm run laptop
+```
+
+It builds the site and starts it at `http://<laptop-ip>:8787`. Phones on the same Wi-Fi (or the laptop's hotspot) open that address. To move the live game over, download a backup from the online admin first and restore it on the laptop.
 
 ### Mistakes are fixable
 
@@ -92,25 +131,29 @@ The free `*.workers.dev` web address is enough. A custom domain is optional and 
 ## Keep the answers secret
 
 - Players' phones and the projector never receive an answer key until that round is revealed.
-- The answers live in `src/worker/game/content.ts`. **Keep this repository private**, or change the mystery in **Admin → Case & content** before the event. Edits made there are saved on the server, not in the code.
+- The answers live in `src/server/game/content.ts`. **Keep this repository private**, or change the mystery in **Admin → Case & content** before the event. Edits made there are saved in the database, not in the code.
 
 ## For developers
 
 ```bash
-npm test             # engine tests: scoring, rules, timers, secrecy, puzzle consistency
-npm run typecheck    # TypeScript for the client and the server
-npm run build        # production build
+npm install
+cp .env.example .env
+npm run dev          # game server on :8787 + website on http://localhost:5173
+npm test             # 77 tests: engine, live server, Postgres store, restarts
+npm run typecheck    # TypeScript for the website and the server
+npm run build        # website → dist/        npm run build:server → dist-server/
 ```
 
 ```text
 src/
   shared/        types and the wire protocol (safe for the browser: no answers)
-  worker/        Cloudflare Worker + the GameRoom Durable Object
+  server/        Node game server: HTTP + WebSocket app, game room, storage
     game/        the engine: actions, scoring, views (what each role may see), default content
   client/        React app
     pages/       Landing, Register, play/ (phones), screen/ (projector), admin/
     components/  shared UI, round forms, evidence cards, timers, leaderboard
-test/            Vitest tests for the engine
+scripts/         dev runner, load test, profiler
+test/            Vitest suites
 ```
 
-How it works: one Durable Object holds the whole event. Phones, the projector and the admin panel connect to it over WebSockets. Each action is checked, applied to a copy of the state, saved, and then each connected screen gets its own filtered view. An alarm locks rounds when the timer hits zero.
+How it works: one Node process holds the whole event. Phones, the projector and the admin panel connect over WebSockets. Each action is checked and applied (only the changed parts of the game are copied), then queued for saving to Postgres. Each connection is sent just the parts of its own view that changed. A timer locks rounds when the clock hits zero, and a clean shutdown saves everything before a restart.
