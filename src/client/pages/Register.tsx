@@ -5,10 +5,9 @@ import type { Member } from "../../shared/types";
 import { Logo } from "../components/Logo";
 import { errorText } from "../components/ui";
 import { postJson, usePublicInfo } from "../lib/api";
+import { TEAM_EMOJIS } from "../lib/emojis";
 import { formatCode } from "../lib/format";
 import { linkTo } from "../lib/router";
-
-export const TEAM_EMOJIS = ["🐝", "🦝", "🦊", "🐙", "👻", "🤖", "🦉", "🐍", "🦈", "🐺", "🦄", "🐸", "🔥", "⚡", "🧠", "🕶️"];
 
 const NAME_IDEAS = [
   "Gradient Gangsters", "The Overfitters", "Null Pointers", "Kernel Panic", "Tensor Thieves", "Loss Leaders",
