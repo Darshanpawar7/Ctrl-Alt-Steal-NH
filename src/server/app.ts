@@ -66,7 +66,9 @@ export function createApp(game: GameServer, options: AppOptions): Server {
       res.writeHead(204);
       return void res.end();
     }
-    if (path === "/api/health" && (method === "GET" || method === "HEAD")) return sendJson(res, 200, game.health());
+    if (path === "/api/health" && (method === "GET" || method === "HEAD")) return sendJson(res, game.ready ? 200 : 503, game.health());
+    // Until the saved game is loaded, nothing else may run: an empty game must never overwrite it.
+    if (path.startsWith("/api/") && !game.ready) return sendJson(res, 503, { error: "The game server is starting up. Try again in a moment." });
     if (path === "/api/public" && method === "GET") return sendJson(res, 200, game.publicInfo());
     if (path === "/api/register" && method === "POST") return sendJson(res, 200, game.register(await readJson(req, MAX_JSON_BYTES), ip));
     if (path.startsWith("/api/img/") && method === "GET") {
@@ -103,6 +105,11 @@ export function createApp(game: GameServer, options: AppOptions): Server {
     const path = new URL(req.url ?? "/", "http://local").pathname;
     if (path !== "/api/ws" || !originAllowed(req)) {
       socket.write("HTTP/1.1 403 Forbidden\r\n\r\n");
+      return void socket.destroy();
+    }
+    if (!game.ready) {
+      // Phones retry on their own a moment later.
+      socket.write("HTTP/1.1 503 Service Unavailable\r\n\r\n");
       return void socket.destroy();
     }
     wss.handleUpgrade(req, socket, head, (ws) => game.connect(ws, clientIp(req)));

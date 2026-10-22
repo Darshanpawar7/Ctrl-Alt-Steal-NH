@@ -64,8 +64,14 @@ export class GameServer {
   private broadcastDue = 0;
   private roundTimer: NodeJS.Timeout | null = null;
   private heartbeat: NodeJS.Timeout | null = null;
+  private loaded = false;
 
   constructor(private readonly store: Store, private readonly secrets: Secrets) {}
+
+  /** False until the saved game has been loaded. Nothing is served before that. */
+  get ready(): boolean {
+    return this.loaded;
+  }
 
   async start(): Promise<void> {
     const loaded = await this.store.load();
@@ -80,6 +86,7 @@ export class GameServer {
     const next = tick(this.state, Date.now());
     if (next) this.commit(next);
     this.heartbeat = setInterval(() => this.checkHeartbeats(), HEARTBEAT_MS);
+    this.loaded = true;
   }
 
   /** Stop cleanly: tell phones to reconnect, then make sure every change is saved. */
@@ -97,7 +104,7 @@ export class GameServer {
   health() {
     const cpu = process.cpuUsage();
     return {
-      ok: true,
+      ok: this.loaded,
       storage: this.store.status(),
       connections: this.conns.size,
       cpuMs: Math.round((cpu.user + cpu.system) / 1000),

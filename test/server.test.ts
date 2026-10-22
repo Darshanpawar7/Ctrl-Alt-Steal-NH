@@ -164,6 +164,33 @@ describe("the game server", () => {
     expect(((await (await fetch(`${s.http}/api/public`)).json()) as { teamCount: number }).teamCount).toBe(1);
   });
 
+  test("while the database is unreachable at startup, the server waits instead of starting empty", async () => {
+    class FlakyStore extends FileStore {
+      loadFailures = 2;
+      override async load() {
+        if (this.loadFailures-- > 0) throw new Error("database is waking up");
+        return super.load();
+      }
+    }
+    const store = new FlakyStore(null);
+    const game = new GameServer(store, { adminPassword: ADMIN_PW, volunteerPassword: "x" });
+    const server = createApp(game, { allowedOrigins: [], clientDir: null });
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    cleanups.push(() => new Promise<void>((resolve) => server.close(() => resolve())));
+    const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+
+    await expect(game.start()).rejects.toThrow(/waking up/);
+    expect((await fetch(`${base}/api/health`)).status).toBe(503);
+    const blocked = await fetch(`${base}/api/register`, { method: "POST", body: "{}" });
+    expect(blocked.status).toBe(503);
+    await expect(connect(`ws://127.0.0.1:${(server.address() as AddressInfo).port}/api/ws`, { role: "screen" })).rejects.toThrow(/503/);
+
+    await expect(game.start()).rejects.toThrow();
+    await game.start();
+    cleanups.push(() => game.shutdown());
+    expect((await fetch(`${base}/api/health`)).status).toBe(200);
+  });
+
   test("nothing is lost when the server restarts", async () => {
     const dir = mkdtempSync(join(tmpdir(), "cas-"));
     cleanups.push(() => rmSync(dir, { recursive: true, force: true }));
