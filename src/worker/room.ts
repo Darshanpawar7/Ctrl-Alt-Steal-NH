@@ -3,7 +3,7 @@
 // that locks rounds when the clock runs out.
 
 import { DurableObject } from "cloudflare:workers";
-import type { Action, ClientMessage, Presence, ServerMessage } from "../shared/protocol";
+import type { Action, ClientMessage, Presence, PublicInfo, ServerMessage } from "../shared/protocol";
 import type { GameState, Role } from "../shared/types";
 import { GameError, applyAction, registerTeam } from "./game/actions";
 import { createInitialState, restoreState, tick, timerRunning } from "./game/state";
@@ -81,12 +81,17 @@ export class GameRoom extends DurableObject<Env> {
     return new Response(null, { status: 101, webSocket: client });
   }
 
-  private publicInfo() {
-    const { event, rounds, teams, live } = this.state;
+  /** Teaser data for the landing page. Suspect traits and bios stay for the briefing. */
+  private publicInfo(): PublicInfo {
+    const { event, rounds, teams, live, caseFile } = this.state;
     return {
       event,
       teamCount: teams.length,
       stage: live.stage,
+      modelName: caseFile.modelName,
+      story: caseFile.story,
+      facts: caseFile.facts,
+      suspects: caseFile.suspects.map(({ id, name, alias, role, emoji }) => ({ id, name, alias, role, emoji })),
       rounds: (["r1", "r2", "r3", "r4", "finale"] as const).map((id) => ({
         id,
         codename: rounds[id].codename,

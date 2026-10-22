@@ -83,6 +83,25 @@ export type Action =
 
 export type ActionType = Action["type"];
 
+// ---------------------------------------------------------------- HTTP
+
+/** GET /api/public: what the landing page needs before anyone signs in. */
+export interface PublicInfo {
+  event: EventInfo;
+  teamCount: number;
+  stage: Stage;
+  modelName: string;
+  story: string[];
+  facts: TimelineFact[];
+  suspects: Pick<Suspect, "id" | "name" | "alias" | "role" | "emoji">[];
+  rounds: { id: RoundId; codename: string; title: string; tagline: string; durationSec: number }[];
+}
+
+export interface RegisterResult {
+  ok: true;
+  team: { name: string; emoji: string; code: string };
+}
+
 // ---------------------------------------------------------------- messages
 
 export type ClientMessage =
