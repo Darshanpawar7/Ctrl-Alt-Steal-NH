@@ -5,6 +5,7 @@
 import { useEffect, useMemo, useSyncExternalStore } from "react";
 import { applyPatch, type Action, type ClientMessage, type ServerMessage, type View } from "../../shared/protocol";
 import type { Role } from "../../shared/types";
+import { wsUrl } from "./api";
 
 export type Hello = Extract<ClientMessage, { t: "hello" }>;
 export type ConnectionStatus = "connecting" | "live" | "reconnecting" | "denied" | "kicked";
@@ -76,8 +77,7 @@ export class GameClient {
   }
 
   private open(): void {
-    const protocol = window.location.protocol === "https:" ? "wss" : "ws";
-    const ws = new WebSocket(`${protocol}://${window.location.host}/api/ws`);
+    const ws = new WebSocket(wsUrl());
     this.ws = ws;
 
     ws.onopen = () => {

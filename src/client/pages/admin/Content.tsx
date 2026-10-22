@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import type { AdminSecrets, ContentSection } from "../../../shared/protocol";
 import type { CaseFile, Evidence, EvidenceKind, FinaleConfig, R1Config, R2Config, R3Config, R4Config, RoundBase } from "../../../shared/types";
 import { ConfirmButton, SectionLabel, errorText, useToast } from "../../components/ui";
+import { apiUrl } from "../../lib/api";
 import { ROUND_LABEL } from "../../lib/format";
 import { adminFetch, useStaff } from "./context";
 import { Check, Grid, Lines, ListEditor, Num, Pick, Text } from "./fields";
@@ -314,7 +315,7 @@ function ImageField({ value, onChange }: { value: string; onChange: (v: string) 
   const { password } = useStaff();
   const toast = useToast();
   const [busy, setBusy] = useState(false);
-  const src = /^[a-z0-9]{10}$/.test(value) ? `/api/img/${value}` : value;
+  const src = /^[a-z0-9]{10}$/.test(value) ? apiUrl(`/api/img/${value}`) : value;
 
   async function upload(file: File) {
     setBusy(true);

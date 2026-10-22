@@ -1,5 +1,6 @@
 import type { PublicEvidence } from "../../shared/protocol";
 import type { Suspect } from "../../shared/types";
+import { apiUrl } from "../lib/api";
 import { Stamp } from "./ui";
 
 interface EvidenceCardProps {
@@ -21,7 +22,7 @@ export function EvidenceCard({ item, index, suspect, big = false }: EvidenceCard
         {suspect && <span className="ml-auto shrink-0 text-xs text-muted">{suspect.emoji} {suspect.alias}</span>}
       </header>
       <div className="p-4">
-        {item.imageSrc && <img src={item.imageSrc} alt={item.title} loading="lazy" className="mb-3 max-h-[360px] w-full rounded-xl object-contain bg-ink" />}
+        {item.imageSrc && <img src={apiUrl(item.imageSrc)} alt={item.title} loading="lazy" className="mb-3 max-h-[360px] w-full rounded-xl object-contain bg-ink" />}
         <Body item={item} text={text} />
       </div>
       {revealed && (

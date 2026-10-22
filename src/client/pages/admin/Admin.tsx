@@ -226,10 +226,17 @@ function LiveBar({ reconnecting }: { reconnecting: boolean }) {
   const reading = readTimer(live.timer, now);
   const round = live.roundId ? view.rounds[live.roundId] : null;
   const teamsOnline = Object.values(view.staff.presence.teams).filter((n) => n > 0).length;
+  const storage = view.staff.presence.storage;
 
   return (
     <div className="sticky top-0 z-30 border-b border-line bg-ink/90 backdrop-blur-md">
       {reconnecting && <p className="bg-alarm px-4 py-1 text-center text-xs font-bold text-white">Connection lost. Reconnecting…</p>}
+      {storage && !storage.ok && (
+        <p className="bg-alarm px-4 py-1 text-center text-xs font-bold text-white">
+          ⚠ The game is not being saved to the database right now. It keeps retrying; the game itself still works. Download a backup to be safe.
+        </p>
+      )}
+      {storage?.kind === "memory" && <p className="bg-honey px-4 py-1 text-center text-xs font-bold text-ink">This server has no storage set up: the game will be lost if it restarts.</p>}
       <div className="flex flex-wrap items-center gap-x-5 gap-y-2 px-4 py-3 sm:px-6">
         <div className="flex items-center gap-2">
           <span className="size-2.5 rounded-full bg-alarm blink" />

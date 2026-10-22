@@ -9,6 +9,8 @@ import { buzz, timeOfDay } from "../../lib/format";
 type SaveState = "idle" | "saving" | "saved" | "error" | "invalid";
 
 const SAVE_DELAY_MS = 700;
+/** After a failed save (e.g. the server restarting), try again on this delay. */
+const RETRY_MS = 3000;
 
 function problem(roundId: RoundId, data: SubData[RoundId], view: TeamView): string | null {
   const budget = view.me.budget;
@@ -38,6 +40,7 @@ export function RoundPanel({ view, act, roundId }: { view: TeamView; act: Act; r
   const locked = Boolean(serverSub?.lockedAt) || status !== "open" || blocked !== null;
   const [draft, setDraft] = useState<SubData[RoundId]>(() => serverSub?.data ?? EMPTY_SUB[roundId]);
   const [saveState, setSaveState] = useState<SaveState>(serverSub ? "saved" : "idle");
+  const [attempt, setAttempt] = useState(0);
   const version = useRef(0);
   const savedVersion = useRef(0);
 
@@ -59,13 +62,16 @@ export function RoundPanel({ view, act, roundId }: { view: TeamView; act: Act; r
         await act({ type: "sub.save", roundId, data: draft });
         if (version.current === v) savedVersion.current = v;
         setSaveState("saved");
+        setAttempt(0);
       } catch (error) {
         setSaveState("error");
-        toast(errorText(error), "bad");
+        if (attempt === 0) toast(errorText(error), "bad");
+        // Keep trying quietly until it lands (the connection comes back on its own).
+        window.setTimeout(() => setAttempt((n) => n + 1), RETRY_MS);
       }
-    }, SAVE_DELAY_MS);
+    }, attempt ? 0 : SAVE_DELAY_MS);
     return () => window.clearTimeout(id);
-  }, [draft]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [draft, attempt]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function change(next: SubData[RoundId]) {
     version.current += 1;
@@ -131,7 +137,7 @@ function SaveBadge({ state, at }: { state: SaveState; at?: number }) {
     idle: "Nothing saved yet",
     saving: "Saving…",
     saved: at ? `Saved ✓ ${timeOfDay(at)}` : "Saved ✓",
-    error: "Not saved. Retrying on next change.",
+    error: "Not saved yet. Retrying…",
     invalid: "Fix the limit to save",
   }[state];
   const tone = state === "saved" ? "text-acid" : state === "error" || state === "invalid" ? "text-alarm" : "text-muted";
