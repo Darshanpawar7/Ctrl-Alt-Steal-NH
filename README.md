@@ -48,10 +48,12 @@ The site runs on Cloudflare Workers. The free plan is enough for this event.
 1. Make a free account at <https://dash.cloudflare.com/sign-up>.
 2. Log in from this folder: `npx wrangler login`
 3. Set the two passwords (it asks you to type each one):
+
    ```bash
    npx wrangler secret put ADMIN_PASSWORD
    npx wrangler secret put VOLUNTEER_PASSWORD
    ```
+
 4. Deploy: `npm run deploy`
 
 It prints your site's address, like `https://ctrl-alt-steal.<your-name>.workers.dev`. Run `npm run deploy` again any time you change the code. Game data is kept when you redeploy.
