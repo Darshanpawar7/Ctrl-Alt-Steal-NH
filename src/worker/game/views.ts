@@ -22,7 +22,7 @@ import {
   type Standing,
   type TeamLedger,
 } from "../../shared/types";
-import { computeBadges, computeLedgers, computeStandings, finaleCorrectCount, rankedTeamIds } from "./scoring";
+import { computeBadges, computeLedgers, computeStandings, finaleCorrectCount, r2SpeedOrder, rankedTeamIds } from "./scoring";
 
 export interface ViewContext {
   ledgers: Record<string, TeamLedger>;
@@ -190,7 +190,9 @@ function stats(state: GameState, ctx: ViewContext): RoundStats {
     }
   }
 
-  return { submitted, lockedIn, market, votes, vaultPicks, vaultBanked, finalePicks, finaleResults };
+  const speedWinners = state.status.r2 === "revealed" ? r2SpeedOrder(state).filter((id) => ranked.has(id)).slice(0, state.rounds.r2.speedBonus.length) : null;
+
+  return { submitted, lockedIn, market, speedWinners, votes, vaultPicks, vaultBanked, finalePicks, finaleResults };
 }
 
 function badgesVisible(state: GameState): boolean {

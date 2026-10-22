@@ -199,6 +199,8 @@ export interface RoundStats {
   lockedIn: Record<RoundId, string[]>;
   /** R1, after lock: total credits staked per lead and how many teams backed it. */
   market: Record<string, { total: number; teams: number }> | null;
+  /** R2, after reveal: crews that won the speed bonus, fastest first. */
+  speedWinners: string[] | null;
   /** R3, after reveal: how the room voted on each item. */
   votes: Record<string, { real: number; fake: number }> | null;
   /** R4, after lock: who stands at which door. */

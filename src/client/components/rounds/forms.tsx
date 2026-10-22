@@ -308,11 +308,11 @@ export function PrizeTable({ round }: { round: PublicRounds["r4"] }) {
 
 // ---------------------------------------------------------------- finale
 
-function Choice<T extends { id: string; name: string; emoji: string }>({ title, options, value, onPick, disabled, truth, sub }: { title: string; options: T[]; value: string; onPick: (id: string) => void; disabled: boolean; truth?: string; sub?: (o: T) => string }) {
+function Choice<T extends { id: string; name: string; emoji: string }>({ title, options, value, onPick, disabled, truth, sub, wide = false }: { title: string; options: T[]; value: string; onPick: (id: string) => void; disabled: boolean; truth?: string; sub?: (o: T) => string; wide?: boolean }) {
   return (
     <fieldset>
       <legend className="label mb-2">{title}</legend>
-      <div className="grid grid-cols-2 gap-2">
+      <div className={`grid gap-2 ${wide ? "grid-cols-1" : "grid-cols-2"}`}>
         {options.map((option) => {
           const chosen = value === option.id;
           const isTruth = truth === option.id;
@@ -329,8 +329,8 @@ function Choice<T extends { id: string; name: string; emoji: string }>({ title, 
             >
               <span className="text-2xl">{option.emoji}</span>
               <span className="min-w-0">
-                <span className="block truncate font-semibold">{option.name}</span>
-                {sub && <span className="block truncate text-xs text-muted">{sub(option)}</span>}
+                <span className="block leading-snug font-semibold">{option.name}</span>
+                {sub && <span className="block text-xs text-muted">{sub(option)}</span>}
               </span>
             </button>
           );
@@ -348,7 +348,7 @@ export function FinaleForm({ round, value, onChange, disabled, budget, caseFile 
     <div className="space-y-6">
       <Choice title="Who stole it?" options={caseFile.suspects} value={value.thiefId} onPick={(thiefId) => onChange({ ...value, thiefId })} disabled={disabled} truth={truth.thiefId} sub={(s) => `“${s.alias}”`} />
       <Choice title="Where is it hidden?" options={caseFile.locations} value={value.locationId} onPick={(locationId) => onChange({ ...value, locationId })} disabled={disabled} truth={truth.locationId} />
-      <Choice title="How do we get it back?" options={caseFile.methods} value={value.methodId} onPick={(methodId) => onChange({ ...value, methodId })} disabled={disabled} truth={truth.methodId} />
+      <Choice title="How do we get it back?" options={caseFile.methods} value={value.methodId} onPick={(methodId) => onChange({ ...value, methodId })} disabled={disabled} truth={truth.methodId} sub={(m) => m.detail} wide />
       <div className="panel p-4">
         <div className="flex items-baseline justify-between">
           <span className="label">Your bet</span>
