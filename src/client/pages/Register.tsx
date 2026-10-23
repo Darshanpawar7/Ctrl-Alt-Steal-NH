@@ -71,7 +71,7 @@ export default function Register() {
           <Logo size="sm" />
         </a>
         <a href="/play" onClick={linkTo("/play")} className="text-sm font-semibold text-muted hover:text-paper">
-          Already registered? Join →
+          <span className="hidden sm:inline">Already registered? </span>Join →
         </a>
       </header>
 
