@@ -31,10 +31,11 @@ The full rules, payouts and what changed from the original plan are in [docs/EVE
 
 | Piece | Service | Job |
 | --- | --- | --- |
-| Website | **Vercel** | Serves every page. Static files, so it never sleeps. |
-| Game server | **Render** | A Node.js program that holds the live game and every phone's connection. |
+| Website + game server | **Render** | One Node.js service: serves every page and runs the live game for every phone. |
 | Database | **Supabase** | Saves every change. If Render restarts the server, nothing is lost. |
 | Keep-awake | **UptimeRobot** | Pings the server every 5 minutes so Render never puts it to sleep. |
+
+One service means one address for everything and nothing to wire together. (Vercel is optional, see the end of this section.)
 
 ## Put it online
 
@@ -64,26 +65,19 @@ A free Supabase project **pauses after one week without activity**. Open the Sup
 
 > **Neon works too**, with no code changes (both are plain Postgres). Create a project in Singapore at <https://neon.tech>, click **Connect**, and use its connection string as is. Neon sleeps after 5 minutes idle and wakes up by itself on the next save, so it never needs un-pausing.
 
-### 2. Render (the game server)
+### 2. Render (the website and game server)
 
 1. Sign up at <https://render.com> with your GitHub account.
-2. Click **New → Blueprint**, pick this repository, and confirm. Render reads `render.yaml` and sets up a free web service in Singapore.
-3. Fill in the secrets it asks for:
+2. Click **New → Blueprint**, pick this repository, and confirm. Render reads `render.yaml` and sets up one free web service in Singapore.
+3. Fill in the three secrets it asks for:
    - `ADMIN_PASSWORD`: the club heads' password. Make it long.
    - `VOLUNTEER_PASSWORD`: the desk volunteers' password.
    - `DATABASE_URL`: the Supabase connection string from step 1 (with `?sslmode=no-verify` on the end).
-   - `ALLOWED_ORIGINS`: leave it empty for now. You fill it in at step 3.
-4. Wait for the first deploy (a few minutes). Copy the service's address, like `https://ctrl-alt-steal-api.onrender.com`.
+4. Wait for the first deploy (about 5 minutes). Copy the service's address, like `https://ctrl-alt-steal.onrender.com`. **This is your website's address**: share it with players.
 5. Open `https://<your-render-address>/api/health`. You should see `"ok":true` and `"kind":"postgres"`. If it says the game is starting up, open Render's **Logs**: a database problem is explained there in one sentence.
+6. Open `https://<your-render-address>` and you should see the landing page.
 
-### 3. Vercel (the website)
-
-1. Sign up at <https://vercel.com> with your GitHub account and **Add New → Project**, then import this repository. It detects Vite automatically.
-2. Under **Environment Variables**, add `VITE_API_URL` = your Render address from step 2 (no slash at the end).
-3. Deploy, and copy your site's address, like `https://ctrl-alt-steal.vercel.app`.
-4. Back on Render, open the service's **Environment** tab and set `ALLOWED_ORIGINS` to your Vercel address. If you add a custom domain later, list both, separated by a comma. Choose **Save and deploy**.
-
-### 4. UptimeRobot (keep the server awake)
+### 3. UptimeRobot (keep the server awake)
 
 Render's free server sleeps after 15 minutes without visitors, and waking up takes about a minute. Stop that from ever happening:
 
@@ -92,7 +86,7 @@ Render's free server sleeps after 15 minutes without visitors, and waking up tak
 
 Bonus: UptimeRobot emails you if the server ever goes down.
 
-### 5. Prove it before the event
+### 4. Prove it before the event
 
 From this folder on your laptop, run a full-hall rehearsal against the real server:
 
@@ -103,11 +97,20 @@ npm run load-test -- https://<your-render-address> <your-admin-password>
 
 It plays 40 crews on 120 phones for 3 minutes, cleans up after itself, and prints response times, errors, data per phone, and how much of the server's CPU and memory it used. Afterwards, press **Reset after dry run** in Admin → Settings & data to clear the test announcements.
 
+### Optional: the website on Vercel as well
+
+Not needed. The one thing it adds: if Render restarts (rare, a few seconds), the landing and registration pages stay up on Vercel while the game reconnects. If you want it:
+
+1. On <https://vercel.com>, **Add New → Project** and import this repository. It detects Vite.
+2. Add the environment variable `VITE_API_URL` = your Render address (no slash at the end), then **Deploy**.
+3. On Render, add `ALLOWED_ORIGINS` = your Vercel address in the service's **Environment** tab, and **Save and deploy**.
+
+Both addresses then work, and share the same game.
+
 ## What each free plan gives you
 
 | Service | Free limits that matter | This event |
 | --- | --- | --- |
-| Vercel (Hobby) | 100 GB bandwidth a month, non-commercial use | A few hundred MB |
 | Render (Free) | 750 server hours a month; sleeps after 15 min idle; may restart at any time | One server all month is about 744 hours. UptimeRobot stops the sleeping; restarts are covered by the database. |
 | Supabase (Free) | 500 MB database, 2 projects; pauses after 1 week with no activity | Under 5 MB |
 | UptimeRobot (Free) | 50 monitors, 5-minute checks | 1 monitor |
@@ -123,7 +126,7 @@ Why not Render's own free database? It is deleted 30 days after you create it, a
 
 ## On the day
 
-1. **Before doors open:** check `https://<render>/api/health` shows `"ok":true`. Open `/screen` on the projector laptop and click once to turn on sound and full screen. Open `/admin` on the host's laptop. Download a backup (Settings & data).
+1. **Before doors open:** check `https://<render>/api/health` shows `"ok":true`. Open `https://<render>/screen` on the projector laptop and click once to turn on sound and full screen. Open `/admin` on the host's laptop. Download a backup (Settings & data).
 2. **Check-in:** volunteers sign in to `/admin` with the volunteer password and use **Teams & check-in**. Crews can't answer until they're checked in, which also records attendance.
 3. **Run the show:** in the **Control room**, press **Next** to step through the schedule. Timers lock answers automatically at zero.
 4. **If the server restarts:** phones show "Reconnecting…" and come back by themselves within seconds. Every saved answer is still there.
