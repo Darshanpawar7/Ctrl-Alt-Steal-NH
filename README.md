@@ -33,19 +33,36 @@ The full rules, payouts and what changed from the original plan are in [docs/EVE
 | --- | --- | --- |
 | Website | **Vercel** | Serves every page. Static files, so it never sleeps. |
 | Game server | **Render** | A Node.js program that holds the live game and every phone's connection. |
-| Database | **Neon** | Saves every change. If Render restarts the server, nothing is lost. |
+| Database | **Supabase** | Saves every change. If Render restarts the server, nothing is lost. |
 | Keep-awake | **UptimeRobot** | Pings the server every 5 minutes so Render never puts it to sleep. |
 
 ## Put it online
 
 Do these in order. Each one is a free account, and everything below uses only free plans.
 
-### 1. Neon (the database)
+### 1. Supabase (the database)
 
-1. Sign up at <https://neon.tech> and create a project. Pick the **Asia Pacific (Singapore)** region, closest to Bengaluru.
-2. On the project dashboard, click **Connect** and copy the connection string. It looks like `postgresql://user:password@ep-something.ap-southeast-1.aws.neon.tech/neondb?sslmode=require`.
+1. Sign up at <https://supabase.com> and create a **New project**. Pick the **Singapore** region (closest to Bengaluru), set a database password, and save that password somewhere. Wait a minute or two while it sets up.
+2. Click **Connect** at the top of the project. Choose the **Session pooler** connection string. Not "Direct connection": that one only works over IPv6 on the free plan, and Render can't reach it.
+3. Put your database password into the string, and **add `?sslmode=no-verify` to the end**. It should look like:
 
-> **Prefer Supabase?** It works too, with no code changes: both are plain Postgres. Create a project in the Singapore region, click **Connect**, and copy the **Session pooler** string (not "Direct": that one is IPv6-only on the free plan and Render can't reach it). Two catches: a free Supabase project **pauses after one week without activity** and has to be un-paused by hand, and setup takes a couple of minutes longer. That's why Neon is the default here: it sleeps when idle but wakes up by itself on the next save.
+   ```text
+   postgresql://postgres.abcdefghijklmnop:YOUR-PASSWORD@aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres?sslmode=no-verify
+   ```
+
+   Why the ending: Supabase signs its connections with its own certificate, which Node doesn't recognise. `no-verify` keeps the connection encrypted but skips that check. For the full check, download the certificate from Supabase (Project settings → Database → SSL configuration), paste it into Render as `DATABASE_CA_CERT`, and leave the ending off.
+4. Optional but recommended: check the string from your laptop before deploying:
+
+   ```bash
+   npm install
+   npx tsx scripts/check-database.ts "postgresql://postgres.abc…?sslmode=no-verify"
+   ```
+
+   It prints ✅ when it connects, or a plain sentence saying what to fix.
+
+A free Supabase project **pauses after one week without activity**. Open the Supabase dashboard the day before the event and on the morning of it. If the project says **Paused**, click **Restore**: the game server waits and reconnects by itself, without losing anything.
+
+> **Neon works too**, with no code changes (both are plain Postgres). Create a project in Singapore at <https://neon.tech>, click **Connect**, and use its connection string as is. Neon sleeps after 5 minutes idle and wakes up by itself on the next save, so it never needs un-pausing.
 
 ### 2. Render (the game server)
 
@@ -54,10 +71,10 @@ Do these in order. Each one is a free account, and everything below uses only fr
 3. Fill in the secrets it asks for:
    - `ADMIN_PASSWORD`: the club heads' password. Make it long.
    - `VOLUNTEER_PASSWORD`: the desk volunteers' password.
-   - `DATABASE_URL`: the Neon connection string from step 1.
+   - `DATABASE_URL`: the Supabase connection string from step 1 (with `?sslmode=no-verify` on the end).
    - `ALLOWED_ORIGINS`: leave it empty for now. You fill it in at step 3.
 4. Wait for the first deploy (a few minutes). Copy the service's address, like `https://ctrl-alt-steal-api.onrender.com`.
-5. Open `https://<your-render-address>/api/health`. You should see `"ok":true` and `"kind":"postgres"`.
+5. Open `https://<your-render-address>/api/health`. You should see `"ok":true` and `"kind":"postgres"`. If it says the game is starting up, open Render's **Logs**: a database problem is explained there in one sentence.
 
 ### 3. Vercel (the website)
 
@@ -91,8 +108,8 @@ It plays 40 crews on 120 phones for 3 minutes, cleans up after itself, and print
 | Service | Free limits that matter | This event |
 | --- | --- | --- |
 | Vercel (Hobby) | 100 GB bandwidth a month, non-commercial use | A few hundred MB |
-| Render (Free) | 750 server hours a month; sleeps after 15 min idle; may restart at any time | One server all month is about 744 hours. UptimeRobot stops the sleeping; restarts are covered by Neon. |
-| Neon (Free) | 1 GB storage, 100 compute hours a month; sleeps after 5 min idle and wakes on the next save | Under 5 MB, a few compute hours |
+| Render (Free) | 750 server hours a month; sleeps after 15 min idle; may restart at any time | One server all month is about 744 hours. UptimeRobot stops the sleeping; restarts are covered by the database. |
+| Supabase (Free) | 500 MB database, 2 projects; pauses after 1 week with no activity | Under 5 MB |
 | UptimeRobot (Free) | 50 monitors, 5-minute checks | 1 monitor |
 
 Measured on the production build with Postgres saving, 40 crews:
@@ -100,7 +117,9 @@ Measured on the production build with Postgres saving, 40 crews:
 - One active phone per crew (a realistic hall): 2% of one CPU core, median response 1 ms.
 - All 120 phones busy at once (about 3× a real peak): 5.4% of one core, median 1 ms, 0 errors, 128 MB memory.
 
-Why not Render's own free database? It is deleted 30 days after you create it, and its free Redis isn't saved at all. Neon's free plan has no such expiry, and running out of a Neon limit pauses it rather than deleting data.
+Database speed doesn't affect players: the live game runs in the Render server's memory, and saving happens in the background. The database is only read when the server starts.
+
+Why not Render's own free database? It is deleted 30 days after you create it, and its free Redis isn't saved at all.
 
 ## On the day
 

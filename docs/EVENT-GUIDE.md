@@ -82,8 +82,9 @@ Volunteers can check crews in, add walk-ins and enter paper answers until a roun
 
 ## Before the event
 
-- [ ] Put it online: Neon, Render, Vercel and UptimeRobot, with both passwords set (see the README).
+- [ ] Put it online: Supabase, Render, Vercel and UptimeRobot, with both passwords set (see the README).
 - [ ] Run the load test against the real server (`npm run load-test`) and check it reports no errors.
+- [ ] The day before and on the morning of the event: the Supabase project isn't paused (click **Restore** if it is), and `https://<render>/api/health` shows `"ok":true`.
 - [ ] Fill in the date, venue, start time and Instagram in **Settings & data**. Open registration.
 - [ ] Read the case in **Case & content**. Change anything you like. If the repository will ever be public, change the solution and clues here.
 - [ ] Optional: add real and AI-generated photos to Round 3.
