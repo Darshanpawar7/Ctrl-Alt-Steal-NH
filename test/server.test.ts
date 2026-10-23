@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -162,6 +162,40 @@ describe("the game server", () => {
     const restored = await fetch(`${s.http}/api/admin/restore`, { method: "POST", headers: { ...auth, "Content-Type": "application/json" }, body: backup });
     expect(restored.status).toBe(200);
     expect(((await (await fetch(`${s.http}/api/public`)).json()) as { teamCount: number }).teamCount).toBe(1);
+  });
+
+  test("serves the website too: pages, app routes, compressed files and security headers", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "cas-site-"));
+    cleanups.push(() => rmSync(dir, { recursive: true, force: true }));
+    mkdirSync(join(dir, "site", "assets"), { recursive: true });
+    writeFileSync(join(dir, "site", "index.html"), "<!doctype html><div id=root></div>");
+    const script = `console.log(${JSON.stringify("x".repeat(5000))});`;
+    writeFileSync(join(dir, "site", "assets", "app-123.js"), script);
+    writeFileSync(join(dir, "secret.txt"), "not for the public");
+
+    const game = new GameServer(new FileStore(null), { adminPassword: ADMIN_PW, volunteerPassword: "x" });
+    await game.start();
+    cleanups.push(() => game.shutdown());
+    const server = createApp(game, { allowedOrigins: [], clientDir: join(dir, "site") });
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    cleanups.push(() => new Promise<void>((resolve) => server.close(() => resolve())));
+    const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+
+    const page = await fetch(`${base}/play`);
+    expect(page.status).toBe(200);
+    expect(await page.text()).toContain('id=root');
+    expect(page.headers.get("content-security-policy")).toContain("connect-src 'self' wss://");
+    expect(page.headers.get("cache-control")).toBe("no-cache");
+
+    const asset = await fetch(`${base}/assets/app-123.js`, { headers: { "Accept-Encoding": "gzip" } });
+    expect(asset.headers.get("content-encoding")).toBe("gzip");
+    expect(Number(asset.headers.get("content-length"))).toBeLessThan(script.length / 10);
+    expect(await asset.text()).toBe(script);
+    expect(asset.headers.get("cache-control")).toContain("immutable");
+
+    const escape = await fetch(`${base}/..%2Fsecret.txt`);
+    expect(await escape.text()).not.toContain("not for the public");
+    expect((await fetch(`${base}/api/health`)).status).toBe(200);
   });
 
   test("while the database is unreachable at startup, the server waits instead of starting empty", async () => {

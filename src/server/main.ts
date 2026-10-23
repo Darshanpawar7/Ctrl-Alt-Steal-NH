@@ -4,7 +4,7 @@
 //   ADMIN_PASSWORD, VOLUNTEER_PASSWORD   staff sign-in
 //   DATABASE_URL                         Postgres (Supabase session pooler or Neon). Without it, saves to ./.data
 //   DATABASE_CA_CERT                     optional: the database's CA certificate, to fully verify it
-//   ALLOWED_ORIGINS                      the website's address(es), comma separated
+//   ALLOWED_ORIGINS                      extra website address(es), only if the site is hosted elsewhere (e.g. Vercel)
 //   PORT                                 set by Render automatically
 //   SERVE_CLIENT=false                   don't serve dist/ (API only)
 
@@ -17,7 +17,9 @@ import { FileStore, PostgresStore } from "./store";
 if (existsSync(".env")) process.loadEnvFile(".env");
 
 const port = Number(process.env.PORT ?? 8787);
-const allowedOrigins = parseOrigins(process.env.ALLOWED_ORIGINS);
+// On Render the server's own address is always allowed, so hosting the website
+// here needs no setting at all. ALLOWED_ORIGINS adds others (e.g. a Vercel site).
+const allowedOrigins = parseOrigins([process.env.ALLOWED_ORIGINS, process.env.RENDER_EXTERNAL_URL].filter(Boolean).join(","));
 const clientDir = process.env.SERVE_CLIENT !== "false" && existsSync("dist/index.html") ? "dist" : null;
 const store = process.env.DATABASE_URL
   ? new PostgresStore(process.env.DATABASE_URL, { maxConnections: Number(process.env.PG_POOL_MAX ?? 4), caCert: process.env.DATABASE_CA_CERT })

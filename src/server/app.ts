@@ -4,6 +4,7 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { readFile, stat } from "node:fs/promises";
 import { extname, join, normalize, resolve, sep } from "node:path";
+import { gzipSync } from "node:zlib";
 import { WebSocketServer } from "ws";
 import { GameError } from "./game/actions";
 import { HttpError, type GameServer } from "./game-server";
@@ -168,6 +169,38 @@ const MIME: Record<string, string> = {
   ".txt": "text/plain; charset=utf-8",
 };
 
+interface CachedFile {
+  body: Buffer;
+  gzip: Buffer | null;
+  type: string;
+}
+
+/** Built files never change while the server runs, so each is read and compressed once. */
+const fileCache = new Map<string, CachedFile>();
+
+async function loadFile(file: string): Promise<CachedFile | null> {
+  const hit = fileCache.get(file);
+  if (hit) return hit;
+  const body = await readFile(file).catch(() => null);
+  if (!body) return null;
+  const type = MIME[extname(file)] ?? "application/octet-stream";
+  // Text compresses to about a third; fonts and images are already compressed.
+  const compressible = /^(text\/|application\/json|image\/svg)/.test(type) && body.length > 1024;
+  const entry = { body, type, gzip: compressible ? gzipSync(body, { level: 9 }) : null };
+  fileCache.set(file, entry);
+  return entry;
+}
+
+/** Security headers for the pages (the same rules vercel.json sets when hosting on Vercel). */
+function pageHeaders(req: IncomingMessage): Record<string, string> {
+  const host = String(req.headers.host ?? "").replace(/[^a-zA-Z0-9.:-]/g, "");
+  return {
+    "Content-Security-Policy": `default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self'; connect-src 'self' wss://${host} ws://${host}; frame-ancestors 'self'; object-src 'none'; base-uri 'self'; form-action 'self'`,
+    "Referrer-Policy": "strict-origin-when-cross-origin",
+    "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
+  };
+}
+
 /** Serves the built website, with the single-page-app fallback to index.html. */
 async function serveClient(root: string, req: IncomingMessage, res: ServerResponse): Promise<boolean> {
   const pathname = decodeURIComponent(new URL(req.url ?? "/", "http://local").pathname);
@@ -176,12 +209,18 @@ async function serveClient(root: string, req: IncomingMessage, res: ServerRespon
   if (wanted !== root && !wanted.startsWith(root + sep)) return false;
   const info = await stat(wanted).catch(() => null);
   const file = info?.isFile() ? wanted : join(root, "index.html");
-  const body = await readFile(file).catch(() => null);
-  if (!body) return false;
+  const cached = await loadFile(file);
+  if (!cached) return false;
+  const useGzip = cached.gzip !== null && /\bgzip\b/.test(String(req.headers["accept-encoding"] ?? ""));
+  const body = useGzip ? cached.gzip! : cached.body;
   res.writeHead(200, {
-    "Content-Type": MIME[extname(file)] ?? "application/octet-stream",
+    "Content-Type": cached.type,
+    "Content-Length": String(body.length),
     "Cache-Control": pathname.startsWith("/assets/") ? "public, max-age=31536000, immutable" : "no-cache",
     "X-Content-Type-Options": "nosniff",
+    Vary: "Accept-Encoding",
+    ...(useGzip ? { "Content-Encoding": "gzip" } : {}),
+    ...(file.endsWith(".html") ? pageHeaders(req) : {}),
   });
   res.end(req.method === "HEAD" ? undefined : body);
   return true;
