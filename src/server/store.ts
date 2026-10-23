@@ -179,19 +179,60 @@ export abstract class Store {
 
 // ---------------------------------------------------------------- Postgres
 
+/**
+ * Connection settings for `pg`. With a CA certificate (Supabase lets you
+ * download theirs), the server's identity is fully verified; any sslmode in
+ * the URL is dropped because it would override that.
+ */
+export function postgresConfig(connectionString: string, caCert?: string): pg.PoolConfig {
+  if (!caCert?.trim()) return { connectionString };
+  const url = new URL(connectionString);
+  url.searchParams.delete("sslmode");
+  return { connectionString: url.toString(), ssl: { ca: caCert.replace(/\\n/g, "\n"), rejectUnauthorized: true } };
+}
+
+/** Turns the usual database errors into a sentence that says what to change. */
+export function explainDatabaseError(error: unknown): Error {
+  const message = error instanceof Error ? error.message : String(error);
+  if (/self-signed certificate|unable to verify|certificate/i.test(message)) {
+    return new Error(`${message}. Supabase uses its own certificate: end DATABASE_URL with ?sslmode=no-verify, or set DATABASE_CA_CERT to the certificate from Supabase's database settings.`);
+  }
+  // (Supabase's "tenant/user not found" also contains "ENOTFOUND", so check logins first.)
+  if (/password authentication failed|tenant\/user/i.test(message)) {
+    return new Error(`${message}. Check the user name and password inside DATABASE_URL.`);
+  }
+  if (/ENOTFOUND|getaddrinfo|ENETUNREACH/i.test(message)) {
+    return new Error(`${message}. Check DATABASE_URL. For Supabase, use the "Session pooler" connection string: the direct one is IPv6-only and Render can't reach it.`);
+  }
+  return error instanceof Error ? error : new Error(message);
+}
+
 export class PostgresStore extends Store {
   readonly kind = "postgres" as const;
   private readonly pool: pg.Pool;
   private readonly images = new Map<string, { type: string; data: Buffer }>();
 
-  constructor(connectionString: string, options: { maxConnections?: number } = {}) {
+  constructor(connectionString: string, options: { maxConnections?: number; caCert?: string } = {}) {
     super();
-    this.pool = new pg.Pool({ connectionString, max: options.maxConnections ?? 4, idleTimeoutMillis: 20_000, connectionTimeoutMillis: 15_000 });
-    // Serverless Postgres (like Neon) closes idle connections; the pool reconnects on next use.
+    this.pool = new pg.Pool({
+      ...postgresConfig(connectionString, options.caCert),
+      max: options.maxConnections ?? 4,
+      idleTimeoutMillis: 20_000,
+      connectionTimeoutMillis: 15_000,
+    });
+    // Serverless Postgres closes idle connections now and then; the pool reconnects on next use.
     this.pool.on("error", (error) => console.error("[store] idle database connection closed:", error.message));
   }
 
   async load(): Promise<LoadedGame> {
+    try {
+      return await this.loadOnce();
+    } catch (error) {
+      throw explainDatabaseError(error);
+    }
+  }
+
+  private async loadOnce(): Promise<LoadedGame> {
     await this.pool.query(`
       CREATE TABLE IF NOT EXISTS cas_kv (key text PRIMARY KEY, value text NOT NULL, updated_at timestamptz NOT NULL DEFAULT now());
       CREATE TABLE IF NOT EXISTS cas_audit (seq bigserial PRIMARY KEY, entry text NOT NULL);
@@ -207,7 +248,9 @@ export class PostgresStore extends Store {
   protected async write(changes: Changes, audit: AuditEntry[], resetAudit: boolean): Promise<void> {
     const upserts = [...changes].filter(([, v]) => v !== null);
     const deletes = [...changes].filter(([, v]) => v === null).map(([k]) => k);
-    const client = await this.pool.connect();
+    const client = await this.pool.connect().catch((error: unknown) => {
+      throw explainDatabaseError(error);
+    });
     try {
       await client.query("BEGIN");
       if (upserts.length) {
@@ -223,7 +266,7 @@ export class PostgresStore extends Store {
       await client.query("COMMIT");
     } catch (error) {
       await client.query("ROLLBACK").catch(() => {});
-      throw error;
+      throw explainDatabaseError(error);
     } finally {
       client.release();
     }

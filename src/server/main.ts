@@ -2,7 +2,8 @@
 // laptop). Configuration comes from environment variables:
 //
 //   ADMIN_PASSWORD, VOLUNTEER_PASSWORD   staff sign-in
-//   DATABASE_URL                         Postgres (e.g. Neon). Without it, saves to ./.data
+//   DATABASE_URL                         Postgres (Supabase session pooler or Neon). Without it, saves to ./.data
+//   DATABASE_CA_CERT                     optional: the database's CA certificate, to fully verify it
 //   ALLOWED_ORIGINS                      the website's address(es), comma separated
 //   PORT                                 set by Render automatically
 //   SERVE_CLIENT=false                   don't serve dist/ (API only)
@@ -19,7 +20,7 @@ const port = Number(process.env.PORT ?? 8787);
 const allowedOrigins = parseOrigins(process.env.ALLOWED_ORIGINS);
 const clientDir = process.env.SERVE_CLIENT !== "false" && existsSync("dist/index.html") ? "dist" : null;
 const store = process.env.DATABASE_URL
-  ? new PostgresStore(process.env.DATABASE_URL, { maxConnections: Number(process.env.PG_POOL_MAX ?? 4) })
+  ? new PostgresStore(process.env.DATABASE_URL, { maxConnections: Number(process.env.PG_POOL_MAX ?? 4), caCert: process.env.DATABASE_CA_CERT })
   : new FileStore(process.env.DATA_DIR ?? ".data");
 const game = new GameServer(store, { adminPassword: process.env.ADMIN_PASSWORD, volunteerPassword: process.env.VOLUNTEER_PASSWORD });
 
