@@ -8,11 +8,11 @@ import { gzipSync } from "node:zlib";
 import { WebSocketServer } from "ws";
 import { GameError } from "./game/actions";
 import { HttpError, type GameServer } from "./game-server";
+import { CLEAN_IMAGE_TYPES } from "./images";
 
 const MAX_JSON_BYTES = 16_000;
 const MAX_BACKUP_BYTES = 4_000_000;
 const MAX_IMAGE_BYTES = 1_500_000;
-const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
 
 export interface AppOptions {
   /** Website origins allowed to call the API, e.g. https://ctrl-alt-steal.vercel.app. Empty allows any. */
@@ -83,7 +83,7 @@ export function createApp(game: GameServer, options: AppOptions): Server {
       if (!game.isAdmin(token, ip)) return sendJson(res, 401, { error: "Wrong admin password." });
       if (path === "/api/admin/upload" && method === "POST") {
         const type = String(req.headers["content-type"] ?? "").split(";")[0]!.trim();
-        if (!IMAGE_TYPES.includes(type)) return sendJson(res, 415, { error: "Upload a JPEG, PNG, WebP or GIF image." });
+        if (!CLEAN_IMAGE_TYPES.includes(type)) return sendJson(res, 415, { error: "Upload a JPEG, PNG or WebP image." });
         return sendJson(res, 200, await game.upload(type, await readBody(req, MAX_IMAGE_BYTES, "That image is too big. Keep it under 1.5 MB.")));
       }
       if (path === "/api/admin/backup" && method === "GET") {

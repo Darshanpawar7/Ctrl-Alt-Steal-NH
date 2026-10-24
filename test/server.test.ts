@@ -156,6 +156,16 @@ describe("the game server", () => {
     expect(img.headers.get("content-type")).toBe("image/png");
     expect(Buffer.from(await img.arrayBuffer()).equals(png)).toBe(true);
 
+    // Hidden details (here a camera model in EXIF) are gone from what players can fetch.
+    const exif = Buffer.from("Exif\0\0MM\0*Canon EOS R5", "latin1");
+    const jpeg = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe1, 0, exif.length + 2]), exif, Buffer.from([0xff, 0xd9])]);
+    const upJpeg = (await (await fetch(`${s.http}/api/admin/upload`, { method: "POST", headers: { ...auth, "Content-Type": "image/jpeg" }, body: jpeg })).json()) as { id: string };
+    const served = Buffer.from(await (await fetch(`${s.http}/api/img/${upJpeg.id}`)).arrayBuffer());
+    expect(served.includes(Buffer.from("Canon"))).toBe(false);
+    expect(served.subarray(0, 2)).toEqual(Buffer.from([0xff, 0xd8]));
+    const fakeJpeg = await fetch(`${s.http}/api/admin/upload`, { method: "POST", headers: { ...auth, "Content-Type": "image/jpeg" }, body: "not a photo" });
+    expect(fakeJpeg.status).toBe(415);
+
     const backup = await (await fetch(`${s.http}/api/admin/backup`, { headers: auth })).text();
     expect(JSON.parse(backup).teams).toHaveLength(1);
     await registerCrew(s.http, "Kernel Panic");

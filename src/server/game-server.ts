@@ -10,6 +10,7 @@ import { GameError, applyAction, registerTeam } from "./game/actions";
 import { Broadcaster, type Connection } from "./game/broadcast";
 import { AUDIT_LIMIT, createInitialState, restoreState, tick, timerRunning } from "./game/state";
 import { newId, normalizeCode } from "./game/util";
+import { stripImageMetadata } from "./images";
 import type { Store } from "./store";
 
 export interface Secrets {
@@ -152,9 +153,16 @@ export class GameServer {
     return ok;
   }
 
+  /** Stores a photo with its hidden details removed, so the file can't give away real vs AI. */
   async upload(type: string, data: Buffer): Promise<{ ok: true; id: string }> {
+    let clean: Buffer;
+    try {
+      clean = stripImageMetadata(type, data);
+    } catch {
+      throw new HttpError(415, "That image couldn't be read. Upload a JPEG, PNG or WebP photo.");
+    }
     const id = newId();
-    await this.store.putImage(id, type, data);
+    await this.store.putImage(id, type, clean);
     return { ok: true, id };
   }
 
