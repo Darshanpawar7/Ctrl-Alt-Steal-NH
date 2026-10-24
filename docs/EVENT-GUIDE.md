@@ -87,7 +87,7 @@ Volunteers can check crews in, add walk-ins and enter paper answers until a roun
 - [ ] The day before and on the morning of the event: the Supabase project isn't paused (click **Restore** if it is), and `https://<render>/api/health` shows `"ok":true`.
 - [ ] Fill in the date, venue, start time and Instagram in **Settings & data**. Open registration.
 - [ ] Read the case in **Case & content**. Change anything you like. If the repository will ever be public, change the solution and clues here.
-- [ ] Optional: add real and AI-generated photos to Round 3.
+- [ ] Optional: add real and AI-generated photos to Round 3. Upload them rather than pasting links: uploads are cleaned of hidden details and players can't easily save them. Don't make the fakes with Google's image tools (Gemini, Imagen): Gemini can detect their invisible watermark. The best defence against chatbot cheating is a giveaway tied to the case, like a date or clock that contradicts the timeline, because a chatbot doesn't know your story.
 - [ ] Do the dry run with **demo crews** (Settings & data), then press **Reset after dry run** and delete the demo crews.
 - [ ] Print team code cards and a set of answer slips for every round (Print kit).
 - [ ] Download a backup.

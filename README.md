@@ -158,6 +158,7 @@ It builds the site and starts it at `http://<laptop-ip>:8787`. Phones on the sam
 ## Keep the answers secret
 
 - Players' phones and the projector never receive an answer key until that round is revealed.
+- Round 3 photos can't give the answer away through the file. Uploads are redrawn in the browser and cleaned again on the server, so hidden details (camera, GPS location, "made with AI" labels) are gone and every photo is the same kind of JPEG. Players can't right-click, long-press or drag them to save; screenshots can't be blocked on any website.
 - The answers live in `src/server/game/content.ts`. **Keep this repository private**, or change the mystery in **Admin → Case & content** before the event. Edits made there are saved in the database, not in the code.
 
 ## For developers
