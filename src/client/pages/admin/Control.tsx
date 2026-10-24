@@ -1,81 +1,34 @@
 import { useState } from "react";
-import type { Action, StaffView } from "../../../shared/protocol";
-import { REVEAL_STEPS, type RoundId, type RoundStatus, type Stage } from "../../../shared/types";
+import type { Action } from "../../../shared/protocol";
+import { REVEAL_STEPS, ROUND_IDS, type RoundId, type Stage } from "../../../shared/types";
 import { ConfirmButton, Dot, SectionLabel } from "../../components/ui";
 import { useStaff } from "./context";
+import { STEPS, backActions, goToActions, nextStepIndex } from "./runOfShow";
 
-interface Step {
-  id: string;
-  at: string;
-  title: string;
-  detail: string;
-  actions: Action[];
-  /** True once the game has reached (or moved past) this step. */
-  done: (v: StaffView) => boolean;
+type Act = (action: Action) => Promise<boolean>;
+
+/** Sends actions one after another, stopping at the first that fails. */
+async function runInOrder(act: Act, actions: Action[]): Promise<void> {
+  for (const action of actions) {
+    if (!(await act(action))) return;
+  }
 }
-
-const after = (status: RoundStatus, ...ok: RoundStatus[]) => ok.includes(status);
-const LATE_STAGES: Stage[] = ["consolidation", "finalReveal", "podium"];
-
-function roundSteps(id: RoundId, at: [string, string, string, string], label: string): Step[] {
-  return [
-    { id: `${id}-intro`, at: at[0], title: `${label}: explain the round`, detail: "Shows the rules and content on the big screen. Answers stay closed.", actions: [{ type: "round.set", roundId: id, status: "intro" }], done: (v) => v.status[id] !== "pending" },
-    { id: `${id}-open`, at: at[1], title: `${label}: GO`, detail: "Starts the countdown. Phones can answer until it hits zero.", actions: [{ type: "round.set", roundId: id, status: "open" }], done: (v) => after(v.status[id], "open", "locked", "revealed") },
-    { id: `${id}-lock`, at: at[2], title: `${label}: lock answers`, detail: "Happens on its own at 00:00. Use this to lock early. Enter paper slips now.", actions: [{ type: "round.set", roundId: id, status: "locked" }], done: (v) => after(v.status[id], "locked", "revealed") },
-    { id: `${id}-reveal`, at: at[3], title: `${label}: reveal`, detail: id === "r4" ? "Switches to the vault. Open the doors one by one below." : "Shows the answers, pays out credits and unlocks the clue.", actions: [{ type: "round.set", roundId: id, status: "revealed" }], done: (v) => v.status[id] === "revealed" },
-  ];
-}
-
-function revealStep(step: number, at: string, title: string, detail: string): Step {
-  return {
-    id: `reveal-${step}`,
-    at,
-    title,
-    detail,
-    actions: [{ type: "live.revealStep", step }],
-    done: (v) => v.live.stage === "podium" || (v.live.stage === "finalReveal" && v.live.revealStep >= step),
-  };
-}
-
-const STEPS: Step[] = [
-  { id: "lobby", at: "0:00", title: "Open check-in", detail: "Lobby screen with the join QR. Check crews in on the Teams page.", actions: [{ type: "stage.set", stage: "lobby" }], done: () => true },
-  { id: "briefing", at: "0:15", title: "Briefing & story", detail: "The story, the timeline and the six suspects.", actions: [{ type: "stage.set", stage: "briefing" }], done: (v) => v.live.stage !== "lobby" || v.status.r1 !== "pending" },
-  ...roundSteps("r1", ["0:25", "0:30", "0:40", "0:43"], "Trading Floor"),
-  { id: "lb1", at: "0:48", title: "Leaderboard", detail: "Show the standings after Round 1.", actions: [{ type: "stage.set", stage: "leaderboard" }], done: (v) => v.status.r2 !== "pending" || (v.status.r1 === "revealed" && v.live.stage === "leaderboard") },
-  ...roundSteps("r2", ["0:50", "0:53", "1:08", "1:10"], "Training Log"),
-  ...roundSteps("r3", ["1:15", "1:18", "1:30", "1:33"], "Lineup"),
-  { id: "lb3", at: "1:38", title: "Leaderboard", detail: "Standings before the break.", actions: [{ type: "stage.set", stage: "leaderboard" }], done: (v) => v.live.stage === "break" || v.status.r4 !== "pending" || (v.status.r3 === "revealed" && v.live.stage === "leaderboard") },
-  { id: "break", at: "1:40", title: "Break (10 min)", detail: "Break screen with a countdown and AI facts.", actions: [{ type: "stage.set", stage: "break" }, { type: "timer.start", seconds: 600, label: "Break" }], done: (v) => v.live.stage === "break" || v.status.r4 !== "pending" },
-  ...roundSteps("r4", ["1:50", "1:53", "2:00", "2:02"], "Vault"),
-  { id: "blackout", at: "2:09", title: "Leaderboard blackout", detail: "Hide the rankings from here to the reveal. Teams still see their own credits.", actions: [{ type: "live.leaderboard", hidden: true }, { type: "stage.set", stage: "leaderboard" }], done: (v) => v.live.leaderboardHidden || LATE_STAGES.includes(v.live.stage) || v.status.finale !== "pending" },
-  { id: "consolidate", at: "2:10", title: "Connect the dots (15 min)", detail: "All clues on screen. Volunteers give no hints.", actions: [{ type: "stage.set", stage: "consolidation" }, { type: "timer.start", seconds: 900, label: "Clue consolidation" }], done: (v) => LATE_STAGES.includes(v.live.stage) || v.status.finale !== "pending" },
-  { id: "finale-open", at: "2:25", title: "Name the Thief: GO", detail: "Final answers and bets. 8 minutes.", actions: [{ type: "round.set", roundId: "finale", status: "open" }], done: (v) => after(v.status.finale, "open", "locked", "revealed") },
-  { id: "finale-lock", at: "2:33", title: "Lock final answers", detail: "Happens at 00:00. Enter any paper slips before the reveal.", actions: [{ type: "round.set", roundId: "finale", status: "locked" }], done: (v) => after(v.status.finale, "locked", "revealed") },
-  { id: "reveal", at: "2:37", title: "The reveal begins", detail: "“The answers are in” + the total credits on the line.", actions: [{ type: "stage.set", stage: "finalReveal" }], done: (v) => v.live.stage === "finalReveal" || v.live.stage === "podium" },
-  revealStep(1, "2:38", "Reveal: the thief", "Drumroll, then the thief and how many crews named them."),
-  revealStep(2, "2:40", "Reveal: the hideout", "Where QUEENBEE was hidden."),
-  revealStep(3, "2:42", "Reveal: the recovery", "How to get it back. Final bets pay out now."),
-  revealStep(4, "2:44", "Epilogue", "Case closed."),
-  revealStep(5, "2:45", "Final standings", "The leaderboard returns, with every final bet."),
-  { id: "podium", at: "2:47", title: "Podium & badges", detail: "Top three, confetti, fanfare and the badge wall.", actions: [{ type: "stage.set", stage: "podium" }], done: (v) => v.live.stage === "podium" },
-];
 
 export default function Control() {
   const { view, act } = useStaff();
-  const nextIndex = STEPS.findIndex((s) => !s.done(view));
+  const nextIndex = nextStepIndex(view);
   const next = nextIndex >= 0 ? STEPS[nextIndex] : null;
+  const back = backActions(view);
   const [busy, setBusy] = useState(false);
 
-  async function run(step: Step) {
+  async function run(actions: Action[]) {
     setBusy(true);
-    for (const action of step.actions) {
-      if (!(await act(action))) break;
-    }
+    await runInOrder(act, actions);
     setBusy(false);
   }
 
   return (
-    <div className="grid gap-6 xl:grid-cols-[1fr_440px]">
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-6 xl:grid-cols-[minmax(0,1fr)_440px]">
       <section className="space-y-5">
         <div className="panel overflow-hidden">
           <div className="tape h-2" />
@@ -85,11 +38,18 @@ export default function Control() {
               <p className="mt-1 font-display text-2xl font-black">{next ? next.title : "Event complete 🎉"}</p>
               {next && <p className="mt-1 text-sm text-muted">{next.detail}</p>}
             </div>
-            {next && (
-              <button type="button" className="keycap keycap-honey px-8 py-4 text-xl" disabled={busy} onClick={() => run(next)}>
-                ▶ Next
-              </button>
-            )}
+            <div className="flex flex-wrap gap-2">
+              {back && (
+                <ConfirmButton className="keycap px-5 py-4 text-base" confirmLabel="Undo the last step?" disabled={busy} onConfirm={() => run(back)}>
+                  ◀ Back
+                </ConfirmButton>
+              )}
+              {next && (
+                <button type="button" className="keycap keycap-honey px-8 py-4 text-xl" disabled={busy} onClick={() => run(next.actions)}>
+                  ▶ Next
+                </button>
+              )}
+            </div>
           </div>
         </div>
 
@@ -98,21 +58,29 @@ export default function Control() {
 
         <div>
           <SectionLabel>Run of show</SectionLabel>
+          <p className="mt-1 text-xs text-muted">Back and “Go back here” rewind the show: rounds return to how they were and the timer stops. Crews' answers are always kept. Back from a lock reopens answers for 2 minutes.</p>
           <ol className="mt-3 space-y-1.5">
             {STEPS.map((step, index) => {
               const isNext = index === nextIndex;
+              const isPast = nextIndex === -1 || index < nextIndex;
               const isDone = step.done(view) && !isNext;
               return (
-                <li key={step.id} className={`flex items-center gap-4 rounded-xl border px-4 py-2.5 ${isNext ? "border-honey bg-honey/10" : "border-line bg-panel"} ${isDone ? "opacity-55" : ""}`}>
-                  <span className="w-11 shrink-0 font-mono text-xs text-honey">{step.at}</span>
-                  <span className="w-5 text-center">{isDone ? "✓" : isNext ? "▶" : "·"}</span>
+                <li key={step.id} className={`flex items-center gap-3 rounded-xl border px-3 py-2.5 sm:gap-4 sm:px-4 ${isNext ? "border-honey bg-honey/10" : "border-line bg-panel"} ${isDone ? "opacity-70" : ""}`}>
+                  <span className="w-9 shrink-0 font-mono text-xs text-honey sm:w-11">{step.at}</span>
+                  <span className="w-5 shrink-0 text-center">{isDone ? "✓" : isNext ? "▶" : "·"}</span>
                   <span className="min-w-0 flex-1">
                     <span className="block text-sm font-semibold">{step.title}</span>
                     <span className="block truncate text-xs text-muted">{step.detail}</span>
                   </span>
-                  <button type="button" className="keycap shrink-0 text-xs" disabled={busy} onClick={() => run(step)}>
-                    Run
-                  </button>
+                  {isPast ? (
+                    <ConfirmButton className="keycap shrink-0 text-xs" confirmLabel="Go back?" disabled={busy} onConfirm={() => run(goToActions(index))}>
+                      ↺ Go back here
+                    </ConfirmButton>
+                  ) : (
+                    <button type="button" className="keycap shrink-0 text-xs" disabled={busy} onClick={() => run(step.actions)}>
+                      Run
+                    </button>
+                  )}
                 </li>
               );
             })}
@@ -125,7 +93,53 @@ export default function Control() {
         <Tracker />
         <Announce />
         <QuickControls />
+        <ResetPanel busy={busy} run={run} />
       </aside>
+    </div>
+  );
+}
+
+type ResetPanelProps = {
+  /** True while the Control room is still sending an earlier set of actions. */
+  busy: boolean;
+  run: (actions: Action[]) => Promise<void>;
+};
+
+function ResetPanel({ busy, run }: ResetPanelProps) {
+  const { view } = useStaff();
+  const [roundId, setRoundId] = useState<RoundId>("r1");
+  return (
+    <div className="panel space-y-4 p-4">
+      <SectionLabel>Go back or reset</SectionLabel>
+      <div>
+        <ConfirmButton className="keycap w-full text-xs" confirmLabel="Rewind to check-in?" disabled={busy} onConfirm={() => run(goToActions(0))}>
+          ⏮ Back to check-in
+        </ConfirmButton>
+        <p className="mt-1.5 text-xs text-muted">Every round goes back to hidden and the timer stops. Answers are kept, so nothing is lost.</p>
+      </div>
+      <div>
+        <p className="label">Reset one round</p>
+        <div className="mt-2 flex gap-2">
+          <select className="field min-w-0 py-1.5 text-sm" value={roundId} onChange={(e) => setRoundId(e.target.value as RoundId)} aria-label="Round to reset">
+            {ROUND_IDS.map((id) => (
+              <option key={id} value={id}>
+                {view.rounds[id].codename} · {view.rounds[id].title}
+              </option>
+            ))}
+          </select>
+          <ConfirmButton className="keycap shrink-0 text-xs" confirmLabel="Clear it?" disabled={busy} onConfirm={() => run([{ type: "round.reset", roundId }])}>
+            Reset
+          </ConfirmButton>
+        </div>
+        <p className="mt-1.5 text-xs text-muted">Clears every crew's answers and hints for that round and hides it, ready to run again.</p>
+      </div>
+      <div>
+        <ConfirmButton className="keycap w-full text-xs" confirmLabel="Clear all progress?" disabled={busy} onConfirm={() => run([{ type: "game.reset", mode: "progress" }])}>
+          ↺ Reset after dry run
+        </ConfirmButton>
+        <p className="mt-1.5 text-xs text-muted">Clears all answers, scores, check-ins and the live feed, and goes back to check-in. Crews and content stay.</p>
+      </div>
+      <p className="text-xs text-muted">Anything else: restore a backup from Settings &amp; data to undo it.</p>
     </div>
   );
 }
