@@ -1,4 +1,5 @@
 import { describe, expect, test } from "vitest";
+import type { Action } from "../src/shared/protocol";
 import { applyAction, registerTeam } from "../src/server/game/actions";
 import { createInitialState, restoreState, tick } from "../src/server/game/state";
 import { ADMIN, T0, VOLUNTEER, act, gameWith, idOf, setStatus, submit, teamActor } from "./helpers";
@@ -165,5 +166,88 @@ describe("content edits and backups", () => {
 
   test("anything that is not a backup is refused", () => {
     expect(() => restoreState({ hello: "world" }, T0)).toThrow(/not a Ctrl\+Alt\+Steal backup/);
+  });
+});
+
+describe("going back and resetting", () => {
+  const rewind = (over: Partial<Extract<Action, { type: "show.rewind" }>> = {}): Action => ({
+    type: "show.rewind",
+    status: {},
+    stage: "lobby",
+    roundId: null,
+    leaderboardHidden: false,
+    revealStep: 0,
+    label: "test",
+    ...over,
+  });
+
+  test("going back moves rounds back, keeps every answer and clears the timer", () => {
+    let s = setStatus(gameWith(["Alpha"]), "r1", "open");
+    s = submit(s, "Alpha", "r1", { stakes: { l1: 100 } });
+    s = setStatus(s, "r1", "revealed");
+    s = setStatus(s, "r2", "open");
+    s = act(s, rewind({ status: { r1: "locked", r2: "pending" }, stage: "round", roundId: "r1" }));
+    expect(s.status).toMatchObject({ r1: "locked", r2: "pending" });
+    expect(s.live).toMatchObject({ stage: "round", roundId: "r1" });
+    expect(s.live.timer.endsAt).toBeNull();
+    expect(s.subs.r1[idOf(s, "Alpha")]!.data.stakes).toEqual({ l1: 100 });
+  });
+
+  test("going back to an open round gives it a short countdown, so it still locks by itself", () => {
+    let s = setStatus(setStatus(gameWith(["Alpha"]), "r1", "open"), "r1", "locked");
+    s = act(s, rewind({ status: { r1: "open" }, stage: "round", roundId: "r1" }));
+    expect(s.status.r1).toBe("open");
+    expect(s.live.timer.endsAt).toBe(T0 + 120_000);
+  });
+
+  test("going back never moves a round forward, so a skipped round can't pay out", () => {
+    let s = setStatus(gameWith(["Alpha"]), "r3", "open");
+    s = act(s, rewind({ status: { r1: "revealed", r2: "revealed", r3: "intro" }, stage: "round", roundId: "r3" }));
+    expect(s.status).toMatchObject({ r1: "pending", r2: "pending", r3: "intro" });
+  });
+
+  test("going back before the vault reveal closes the opened doors", () => {
+    let s = setStatus(gameWith(["Alpha"]), "r4", "open");
+    s = setStatus(s, "r4", "revealed");
+    s = act(s, { type: "vault.open", door: s.rounds.r4.doors[0]! });
+    s = act(s, rewind({ status: { r4: "locked" }, stage: "round", roundId: "r4" }));
+    expect(s.live.vaultOpened).toEqual([]);
+  });
+
+  test("going back sets the reveal beat and the leaderboard, and only club heads can do it", () => {
+    let s = setStatus(setStatus(gameWith(["Alpha"]), "finale", "open"), "finale", "locked");
+    s = act(s, { type: "stage.set", stage: "finalReveal" });
+    s = act(s, { type: "live.revealStep", step: 5 });
+    expect(() => act(s, rewind(), VOLUNTEER)).toThrow(/not allowed/);
+    s = act(s, rewind({ stage: "finalReveal", roundId: "finale", leaderboardHidden: true, revealStep: 1 }));
+    expect(s.live).toMatchObject({ stage: "finalReveal", revealStep: 1, leaderboardHidden: true });
+    expect(s.status.finale).toBe("revealed");
+  });
+
+  test("the reveal screens can't be shown while the finale is unrevealed", () => {
+    expect(() => act(gameWith(["Alpha"]), rewind({ stage: "finalReveal", roundId: "finale" }))).toThrow(/finale/);
+  });
+
+  test("resetting a round clears its answers and hints and hides it again", () => {
+    let s = setStatus(gameWith(["Alpha", "Bravo"]), "r1", "open");
+    s = submit(s, "Alpha", "r1", { stakes: { l1: 100 } });
+    s = setStatus(s, "r2", "open");
+    s = submit(s, "Alpha", "r2", { answers: { q1: "1" } }, { lock: true });
+    s = act(s, { type: "hint.buy", roundId: "r2", index: 0 }, teamActor(s, "Bravo"));
+    expect(() => act(s, { type: "round.reset", roundId: "r2" }, VOLUNTEER)).toThrow(/not allowed/);
+    s = act(s, { type: "round.reset", roundId: "r2" });
+    expect(s.status.r2).toBe("pending");
+    expect(s.subs.r2).toEqual({});
+    expect(s.hints.r2).toEqual({});
+    expect(s.live.timer.endsAt).toBeNull();
+    expect(s.subs.r1[idOf(s, "Alpha")]).toBeDefined();
+  });
+
+  test("resetting the vault closes its doors", () => {
+    let s = setStatus(setStatus(gameWith(["Alpha"]), "r4", "open"), "r4", "revealed");
+    s = act(s, { type: "vault.open", door: s.rounds.r4.doors[0]! });
+    s = act(s, { type: "round.reset", roundId: "r4" });
+    expect(s.live.vaultOpened).toEqual([]);
+    expect(s.status.r4).toBe("pending");
   });
 });

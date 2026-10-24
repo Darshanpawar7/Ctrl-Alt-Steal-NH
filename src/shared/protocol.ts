@@ -63,6 +63,10 @@ export type Action =
   | { type: "hint.set"; roundId: RoundId; teamId: string; indexes: number[] }
   | { type: "stage.set"; stage: Stage; roundId?: RoundId | null }
   | { type: "round.set"; roundId: RoundId; status: RoundStatus }
+  /** Puts the show back to an earlier point: rounds only ever move back, answers are kept, the timer stops (a reopened round gets 2 minutes). */
+  | { type: "show.rewind"; status: Partial<Record<RoundId, RoundStatus>>; stage: Stage; roundId: RoundId | null; leaderboardHidden: boolean; revealStep: number; label: string }
+  /** Clears one round's answers and hints and hides it, ready to run again. */
+  | { type: "round.reset"; roundId: RoundId }
   | { type: "timer.start"; seconds: number; label: string }
   | { type: "timer.pause" }
   | { type: "timer.resume" }

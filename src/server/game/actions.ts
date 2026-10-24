@@ -49,6 +49,8 @@ const TEAM_ACTIONS = new Set<ActionType>(["sub.save", "hint.buy", "board.mark", 
 const VOLUNTEER_ACTIONS = new Set<ActionType>(["team.add", "team.update", "team.checkin", "sub.staffSet"]);
 const STAGES: Stage[] = ["lobby", "briefing", "round", "leaderboard", "break", "consolidation", "finalReveal", "podium"];
 const STATUSES: RoundStatus[] = ["pending", "intro", "open", "locked", "revealed"];
+/** A round reopened by going back gets this long before it locks itself again (+1m adds more). */
+const REOPEN_SEC = 120;
 /** Teams may keep saving for a moment after the buzzer to absorb network lag. */
 const SUBMIT_GRACE_MS = 1500;
 const DEMO_TEAMS: [string, string][] = [
@@ -418,6 +420,46 @@ function handle(state: GameState, action: Action, actor: Actor, now: number, kic
         }
       }
       audit(state, now, actor, action.type, `${cfg.codename} → ${action.status}`);
+      return;
+    }
+    case "show.rewind": {
+      if (!STAGES.includes(action.stage)) throw new GameError("Unknown stage.");
+      const target = action.status && typeof action.status === "object" ? action.status : {};
+      for (const roundId of ROUND_IDS) {
+        const status = target[roundId];
+        // Only ever backwards: a round that was skipped must not jump ahead and pay out.
+        if (status && STATUSES.includes(status) && STATUSES.indexOf(status) < STATUSES.indexOf(state.status[roundId])) state.status[roundId] = status;
+      }
+      if ((action.stage === "finalReveal" || action.stage === "podium") && state.status.finale !== "revealed") throw new GameError("The finale hasn't been revealed yet.");
+      if (state.status.r4 !== "revealed") state.live.vaultOpened = [];
+      state.live.stage = action.stage;
+      state.live.roundId = action.roundId === null || action.roundId === undefined ? null : round(action.roundId);
+      state.live.leaderboardHidden = Boolean(action.leaderboardHidden);
+      state.live.revealStep = int(action.revealStep, 0, REVEAL_STEPS.length - 1, 0);
+      state.live.timer = emptyTimer();
+      // An open round always has a clock, so it can't stay open forever by accident.
+      const liveRound = state.live.roundId;
+      if (state.live.stage === "round" && liveRound && state.status[liveRound] === "open") {
+        const cfg = state.rounds[liveRound];
+        startTimer(state, REOPEN_SEC, `${cfg.codename} · ${cfg.title}`, now);
+      }
+      audit(state, now, actor, action.type, `Went back: ${str(action.label, 80)}`);
+      return;
+    }
+    case "round.reset": {
+      const roundId = round(action.roundId);
+      state.status[roundId] = "pending";
+      state.subs[roundId] = {};
+      state.hints[roundId] = {};
+      if (roundId === "r4") state.live.vaultOpened = [];
+      if (roundId === "finale") state.live.revealStep = 0;
+      if (state.live.roundId === roundId) {
+        state.live.timer = emptyTimer();
+        // It was on the big screen: show the standings while it waits to run again.
+        if (state.live.stage === "round" || state.live.stage === "finalReveal" || state.live.stage === "podium") state.live.stage = "leaderboard";
+        state.live.roundId = null;
+      }
+      audit(state, now, actor, action.type, `Reset ${state.rounds[roundId].codename}: answers and hints cleared`);
       return;
     }
     case "timer.start": {
