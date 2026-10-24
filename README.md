@@ -97,6 +97,8 @@ npm run load-test -- https://<your-render-address> <your-admin-password>
 
 It plays 40 crews on 120 phones for 3 minutes, cleans up after itself, and prints response times, errors, data per phone, and how much of the server's CPU and memory it used. Afterwards, press **Reset after dry run** in Admin → Settings & data to clear the test announcements.
 
+If it stops partway (Ctrl+C, or your connection drops), it says why and tidies up by itself. If it can't reach the server to tidy up, run the same command with `--cleanup` on the end once you're back online: it removes the leftover "Load Crew" teams and puts the screens back.
+
 ### Optional: the website on Vercel as well
 
 Not needed. The one thing it adds: if Render restarts (rare, a few seconds), the landing and registration pages stay up on Vercel while the game reconnects. If you want it:
