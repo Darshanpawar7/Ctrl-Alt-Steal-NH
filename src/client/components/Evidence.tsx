@@ -22,7 +22,7 @@ export function EvidenceCard({ item, index, suspect, big = false }: EvidenceCard
         {suspect && <span className="ml-auto shrink-0 text-xs text-muted">{suspect.emoji} {suspect.alias}</span>}
       </header>
       <div className="p-4">
-        {item.imageSrc && <img src={apiUrl(item.imageSrc)} alt={item.title} loading="lazy" className="mb-3 max-h-[360px] w-full rounded-xl object-contain bg-ink" />}
+        {item.imageSrc && <ProtectedImage src={apiUrl(item.imageSrc)} alt={item.title} />}
         <Body item={item} text={text} />
       </div>
       {revealed && (
@@ -38,6 +38,19 @@ export function EvidenceCard({ item, index, suspect, big = false }: EvidenceCard
         </div>
       )}
     </article>
+  );
+}
+
+/**
+ * Evidence photos can't be saved with right-click, long-press or dragging: a see-through cover
+ * sits over the photo, so the browser never offers "Save image". Screenshots can't be blocked.
+ */
+function ProtectedImage({ src, alt }: { src: string; alt: string }) {
+  return (
+    <div className="relative mb-3 select-none [-webkit-touch-callout:none]" onContextMenu={(e) => e.preventDefault()} onDragStart={(e) => e.preventDefault()}>
+      <img src={src} alt={alt} loading="lazy" draggable={false} className="pointer-events-none max-h-[360px] w-full rounded-xl bg-ink object-contain" />
+      <span aria-hidden className="absolute inset-0" />
+    </div>
   );
 }
 

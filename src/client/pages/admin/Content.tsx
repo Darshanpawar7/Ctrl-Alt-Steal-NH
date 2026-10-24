@@ -288,7 +288,7 @@ function R3Editor({ value, set }: { value: R3Config; set: SetFn<R3Config> }) {
         <Num label="Credits lost per wrong call" value={value.pointsWrong} onChange={(pointsWrong) => set({ pointsWrong })} />
       </Grid>
       <p className="text-sm text-muted">
-        Tip: mix real photos with AI-generated ones. Upload images below (they're resized to 1280px). Each item can have text, an image, or both.
+        Tip: mix real photos with AI-generated ones. Uploads are resized to 1280px and saved the same way, with hidden details (camera, location, “made with AI” labels) removed, so the file can't give the answer away. Each item can have text, an image, or both.
       </p>
       <ListEditor<Evidence> title="Evidence" items={value.items} max={16} onChange={(items) => set({ items })} make={() => ({ id: slug(), suspectId: suspects[0]?.id ?? "", kind: "photo", title: "", meta: "", body: "", image: "", fake: false, tell: "" })} render={(it, u) => (
         <>
@@ -338,20 +338,37 @@ function ImageField({ value, onChange }: { value: string; onChange: (v: string) 
         {busy ? "Uploading…" : "⬆ Upload"}
         <input type="file" accept="image/*" className="hidden" disabled={busy} onChange={(e) => e.target.files?.[0] && upload(e.target.files[0])} />
       </label>
+      {/^https?:/i.test(value) && (
+        <p className="text-xs text-alarm sm:col-span-2">A link keeps the original file, and its address can show where the photo came from. Download it and upload it here instead.</p>
+      )}
       {src && <img src={src} alt="" className="max-h-40 rounded-xl border border-line object-contain sm:col-span-2" />}
     </div>
   );
 }
 
+/**
+ * Redraws the photo (at most `maxSide` px) as a JPEG. Redrawing drops every hidden detail
+ * (camera, location, "made with AI" labels), and every photo ends up the same kind of file,
+ * so neither the details nor the file type can give away which evidence is real.
+ */
 async function shrink(file: File, maxSide: number): Promise<Blob> {
-  if (file.type === "image/gif") return file;
-  const bitmap = await createImageBitmap(file);
+  let bitmap: ImageBitmap;
+  try {
+    bitmap = await createImageBitmap(file);
+  } catch {
+    throw new Error("Couldn't read that image. Save it as a JPEG or PNG and try again.");
+  }
   const scale = Math.min(1, maxSide / Math.max(bitmap.width, bitmap.height));
   const canvas = document.createElement("canvas");
   canvas.width = Math.round(bitmap.width * scale);
   canvas.height = Math.round(bitmap.height * scale);
-  canvas.getContext("2d")!.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-  return new Promise((resolve, reject) => canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("Could not read that image."))), "image/jpeg", 0.88));
+  const context = canvas.getContext("2d")!;
+  // JPEG has no transparency: see-through images get white behind them instead of black.
+  context.fillStyle = "#ffffff";
+  context.fillRect(0, 0, canvas.width, canvas.height);
+  context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+  bitmap.close();
+  return new Promise((resolve, reject) => canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("Couldn't read that image."))), "image/jpeg", 0.88));
 }
 
 function R4Editor({ value, set }: { value: R4Config; set: SetFn<R4Config> }) {
