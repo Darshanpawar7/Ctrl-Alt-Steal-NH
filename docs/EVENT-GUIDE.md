@@ -43,7 +43,7 @@ Each round has four beats, all driven from the control room: **Explain** (rules 
 
 ## Run of show with the website
 
-Times are minutes from when check-in opens, same as the original guide. The control room lists every step with a **Run** button, and the big **▶ Next** button always does the next one.
+Times are minutes from when check-in opens, same as the original guide. The control room lists every step with a **Run** button, and the big **▶ Next** button always does the next one. **◀ Back** undoes the last step, and **Go back here** on any earlier step rewinds the show to that point: rounds return to how they were and the timer stops. Crews' answers are always kept.
 
 | Time | Step | What the host presses |
 | --- | --- | --- |
@@ -96,6 +96,7 @@ Volunteers can check crews in, add walk-ins and enter paper answers until a roun
 
 - **Wi-Fi or mobile data dies:** hand out paper slips. Volunteers enter them in **Rounds & answers**. The projector keeps working on the laptop's connection.
 - **A phone can't sign in:** check the code on the Teams page. Use **New code** if a code leaked (it logs out everyone using the old one).
+- **Pressed Next or a reveal too early:** press **◀ Back**, or **Go back here** on the step you want. Answers are kept. To run a round again from scratch, use **Reset one round** in the Control room's "Go back or reset" panel.
 - **A wrong answer key or a dispute:** fix the key in Case & content or the crew's answer in Rounds & answers. Totals recalculate. For anything else, add an adjustment with a reason.
 - **Projector laptop crashes:** open `/screen` again. Nothing is lost; the game lives on the server.
 - **"Reconnecting…" on every screen:** the game server is restarting (Render can do this at any time). Wait a few seconds: screens reconnect by themselves and every saved answer is still there. If a red "not being saved" bar appears in the admin panel, download a backup.

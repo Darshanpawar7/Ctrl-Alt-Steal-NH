@@ -152,6 +152,7 @@ It builds the site and starts it at `http://<laptop-ip>:8787`. Phones on the sam
 - Credits are never stored as a running total. They're recalculated from answers and answer keys every time. Fix a wrong answer or a wrong key, and every total updates.
 - Anything else (a dispute, a prize, a penalty) goes in as an **adjustment** with a written reason.
 - Every staff action is in the **audit log**.
+- Pressed a step too early? **◀ Back** in the Control room undoes it, and **Go back here** rewinds to any earlier step. Answers are kept. **Reset one round** clears one round's answers so it can run again.
 - After the dry run, use **Reset after dry run** to clear answers and check-ins but keep crews and content.
 
 ## Keep the answers secret
