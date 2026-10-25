@@ -2,14 +2,15 @@
 
 # Ctrl+Alt+Steal
 
-**A live, multiplayer AI-heist game for college events.**<br>
-Crews play on their phones, the projector runs the show, and organisers steer everything from one control room.
+**A live, multiplayer AI-heist game for college events.**<br>Crews play on their phones, the projector runs the show, and organisers steer everything from one control room.
 
-[![Licence: MIT](https://img.shields.io/badge/licence-MIT-ffb627)](LICENSE)
-![Node.js 22.12+](https://img.shields.io/badge/node-%E2%89%A522.12-339933?logo=node.js&logoColor=white)
-![TypeScript](https://img.shields.io/badge/TypeScript-3178c6?logo=typescript&logoColor=white)
-![React 19](https://img.shields.io/badge/React-19-61dafb?logo=react&logoColor=black)
-![Free to host](https://img.shields.io/badge/hosting-free%20tier-9be05a)
+<p>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/licence-MIT-ffb627" alt="Licence: MIT"></a>
+  <img src="https://img.shields.io/badge/node-22.12%2B-339933?logo=nodedotjs&logoColor=white" alt="Node.js 22.12+">
+  <img src="https://img.shields.io/badge/TypeScript-3178c6?logo=typescript&logoColor=white" alt="TypeScript">
+  <img src="https://img.shields.io/badge/React-19-61dafb?logo=react&logoColor=black" alt="React 19">
+  <img src="https://img.shields.io/badge/hosting-free%20tier-9be05a" alt="Free to host">
+</p>
 
 Built by [Darshan Pawar](https://github.com/Darshanpawar7) for **Neural Hive**, PES University, and first run in October 2026.
 
