@@ -4,6 +4,8 @@ The live game website for **Ctrl+Alt+Steal**, Neural Hive's AI heist challenge a
 
 Neural Hive's prize AI model has been stolen. Crews of 3–4 "recovery agents" play four rounds on their phones, earn and bet Compute Credits, collect clues, and finally bet on naming the thief. The projector shows everything live, and the organisers run the whole show from an admin control room.
 
+It ran Neural Hive's event in October 2026 and is now open source under the [MIT licence](LICENSE). To run your own event, follow "Put it online" below and write your own mystery in **Admin → Case & content**: the default case and its answers are public in this repository.
+
 ## What's inside
 
 | Page | Who uses it | What it does |
@@ -159,7 +161,7 @@ It builds the site and starts it at `http://<laptop-ip>:8787`. Phones on the sam
 
 - Players' phones and the projector never receive an answer key until that round is revealed.
 - Round 3 photos can't give the answer away through the file. Uploads are redrawn in the browser and cleaned again on the server, so hidden details (camera, GPS location, "made with AI" labels) are gone and every photo is the same kind of JPEG. Players can't right-click, long-press or drag them to save; screenshots can't be blocked on any website.
-- The answers live in `src/server/game/content.ts`. **Keep this repository private**, or change the mystery in **Admin → Case & content** before the event. Edits made there are saved in the database, not in the code.
+- This repository is public, so the default mystery's answers are too (`src/server/game/content.ts` and `docs/HOST-ANSWER-KEY.md`). For your own event, change the mystery in **Admin → Case & content** before registration opens. Edits made there are saved in the database, not in the code, so they stay private.
 
 ## For developers
 
@@ -167,7 +169,7 @@ It builds the site and starts it at `http://<laptop-ip>:8787`. Phones on the sam
 npm install
 cp .env.example .env
 npm run dev          # game server on :8787 + website on http://localhost:5173
-npm test             # 77 tests: engine, live server, Postgres store, restarts
+npm test             # 100 tests: engine, live server, Postgres store, restarts, photos
 npm run typecheck    # TypeScript for the website and the server
 npm run build        # website → dist/        npm run build:server → dist-server/
 ```
@@ -185,3 +187,8 @@ test/            Vitest suites
 ```
 
 How it works: one Node process holds the whole event. Phones, the projector and the admin panel connect over WebSockets. Each action is checked and applied (only the changed parts of the game are copied), then queued for saving to Postgres. Each connection is sent just the parts of its own view that changed. A timer locks rounds when the clock hits zero, and a clean shutdown saves everything before a restart.
+
+
+## Licence
+
+MIT: see [LICENSE](LICENSE). Use it, change it and run your own events with it. A credit to Neural Hive, PES University is appreciated.
