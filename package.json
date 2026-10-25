@@ -2,6 +2,7 @@
   "name": "ctrl-alt-steal",
   "private": true,
   "version": "1.0.0",
+  "license": "MIT",
   "description": "Live game platform for Ctrl+Alt+Steal, Neural Hive's AI heist challenge at PES University.",
   "type": "module",
   "engines": {
